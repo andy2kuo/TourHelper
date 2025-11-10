@@ -9,6 +9,13 @@ const state = {
     googleMapsApiKey: ''
 };
 
+// Utility function to escape HTML to prevent XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
     // Check if already logged in
@@ -343,10 +350,17 @@ function displaySuggestions(suggestions) {
     suggestions.forEach(suggestion => {
         const item = document.createElement('div');
         item.className = 'suggestion-item';
-        item.innerHTML = `
-            <h4>${suggestion.name}</h4>
-            <p>${suggestion.description}</p>
-        `;
+        
+        // Create elements safely to prevent XSS
+        const heading = document.createElement('h4');
+        heading.textContent = suggestion.name;
+        
+        const description = document.createElement('p');
+        description.textContent = suggestion.description;
+        
+        item.appendChild(heading);
+        item.appendChild(description);
+        
         item.onclick = () => {
             if (window.google && suggestion.location) {
                 clearMarkers();
@@ -394,11 +408,23 @@ function addChatMessage(payload) {
 
     const time = new Date().toLocaleTimeString();
     
-    messageDiv.innerHTML = `
-        <span class="sender">${payload.sender || 'Unknown'}:</span>
-        <span class="content">${payload.message || ''}</span>
-        <span class="time">${time}</span>
-    `;
+    // Create elements safely to prevent XSS
+    const senderSpan = document.createElement('span');
+    senderSpan.className = 'sender';
+    senderSpan.textContent = (payload.sender || 'Unknown') + ':';
+    
+    const contentSpan = document.createElement('span');
+    contentSpan.className = 'content';
+    contentSpan.textContent = payload.message || '';
+    
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'time';
+    timeSpan.textContent = time;
+    
+    messageDiv.appendChild(senderSpan);
+    messageDiv.appendChild(document.createTextNode(' '));
+    messageDiv.appendChild(contentSpan);
+    messageDiv.appendChild(timeSpan);
 
     messagesDiv.appendChild(messageDiv);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;

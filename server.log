@@ -1,0 +1,7 @@
+nohup: ignoring input
+2025/11/10 17:41:49 Server starting on :9999
+2025/11/10 17:41:49 Web client available at http://localhost:9999
+2025/11/10 17:41:49 Default credentials:
+2025/11/10 17:41:49   Web: webuser / password123
+2025/11/10 17:41:49   Line: lineuser / password123
+2025/11/10 17:41:49   Telegram: telegramuser / password123
