@@ -49,11 +49,11 @@ type UpdateTourRequest struct {
 
 // TourFilter represents filter criteria for listing tours
 type TourFilter struct {
-	Category string
-	Country  string
-	Budget   string
-	Season   string
+	Category  string
+	Country   string
+	Budget    string
+	Season    string
 	MinRating float64
-	Limit    int
-	Offset   int
+	Limit     int
+	Offset    int
 }

@@ -12,7 +12,7 @@ func TestLoad(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "default configuration",
+			name:    "default configuration",
 			envVars: map[string]string{},
 			wantErr: false,
 		},
