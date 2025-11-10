@@ -33,3 +33,7 @@ go.work.sum
 
 # Built binary
 tourhelper
+
+# Server logs
+*.log
+nohup.out
