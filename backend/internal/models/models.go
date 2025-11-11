@@ -9,11 +9,11 @@ import (
 // User 使用者模型
 type User struct {
 	gorm.Model
-	ExternalID   string `gorm:"uniqueIndex;not null"` // Line ID 或 Telegram ID
-	Platform     string `gorm:"not null"`             // line, telegram, web
-	Username     string
-	DisplayName  string
-	Preferences  UserPreferences `gorm:"foreignKey:UserID"`
+	ExternalID    string `gorm:"uniqueIndex;not null"` // Line ID 或 Telegram ID
+	Platform      string `gorm:"not null"`             // line, telegram, web
+	Username      string
+	DisplayName   string
+	Preferences   UserPreferences `gorm:"foreignKey:UserID"`
 	SearchHistory []SearchHistory `gorm:"foreignKey:UserID"`
 }
 
@@ -21,10 +21,10 @@ type User struct {
 type UserPreferences struct {
 	gorm.Model
 	UserID            uint
-	MaxDistance       float64 `gorm:"default:50"`    // 最大距離（公里）
-	PreferredWeather  string  `gorm:"default:any"`   // sunny, cloudy, rainy, any
+	MaxDistance       float64 `gorm:"default:50"`  // 最大距離（公里）
+	PreferredWeather  string  `gorm:"default:any"` // sunny, cloudy, rainy, any
 	PreferredCategory string  // nature, culture, food, shopping, adventure
-	MinRating         float64 `gorm:"default:3.0"`   // 最低評分
+	MinRating         float64 `gorm:"default:3.0"`    // 最低評分
 	Budget            string  `gorm:"default:medium"` // low, medium, high
 }
 
@@ -40,10 +40,10 @@ type Destination struct {
 	Address     string
 	City        string
 	Region      string
-	Country     string  `gorm:"default:Taiwan"`
+	Country     string `gorm:"default:Taiwan"`
 	ImageURL    string
 	Website     string
-	Tags        []Tag   `gorm:"many2many:destination_tags;"`
+	Tags        []Tag `gorm:"many2many:destination_tags;"`
 }
 
 // Tag 標籤
@@ -82,10 +82,10 @@ type WeatherData struct {
 
 // RecommendationRequest 推薦請求結構
 type RecommendationRequest struct {
-	Latitude  float64 `json:"latitude" binding:"required"`
-	Longitude float64 `json:"longitude" binding:"required"`
-	UserID    uint    `json:"user_id,omitempty"`
-	Category  string  `json:"category,omitempty"`
+	Latitude    float64 `json:"latitude" binding:"required"`
+	Longitude   float64 `json:"longitude" binding:"required"`
+	UserID      uint    `json:"user_id,omitempty"`
+	Category    string  `json:"category,omitempty"`
 	MaxDistance float64 `json:"max_distance,omitempty"`
 }
 
@@ -99,10 +99,10 @@ type RecommendationResponse struct {
 // DestinationWithDistance 帶距離資訊的目的地
 type DestinationWithDistance struct {
 	Destination
-	Distance      float64 `json:"distance"`       // 距離（公里）
-	TravelTime    int     `json:"travel_time"`    // 預估旅行時間（分鐘）
-	Suitability   float64 `json:"suitability"`    // 適合度評分 (0-100)
-	WeatherMatch  bool    `json:"weather_match"`  // 是否適合當前天氣
+	Distance     float64 `json:"distance"`      // 距離（公里）
+	TravelTime   int     `json:"travel_time"`   // 預估旅行時間（分鐘）
+	Suitability  float64 `json:"suitability"`   // 適合度評分 (0-100)
+	WeatherMatch bool    `json:"weather_match"` // 是否適合當前天氣
 }
 
 // WeatherInfo 天氣資訊

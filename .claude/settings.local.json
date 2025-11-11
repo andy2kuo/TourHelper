@@ -6,7 +6,12 @@
       "Bash(go test:*)",
       "Bash(tree:*)",
       "Bash(go build:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(npm install:*)",
+      "Bash(npx markdownlint:*)",
+      "Bash(go fmt:*)",
+      "Bash(grep:*)",
+      "Bash(go mod tidy:*)"
     ],
     "deny": [],
     "ask": []

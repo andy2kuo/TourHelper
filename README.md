@@ -15,61 +15,122 @@ TourHelper 是一個智慧旅遊推薦系統，根據使用者的當前位置、
 
 ## 技術架構
 
-- **後端**：Go 1.25+ with Gin Web Framework
-- **前端**：Vue.js（開發中）
+### 後端 (Backend)
+
+- **程式語言**：Go 1.25+
+- **Web 框架**：Gin Web Framework
 - **資料庫**：支援 SQLite / MySQL / PostgreSQL
-- **Bot 整合**：Line Bot SDK、Telegram Bot API
-- **配置管理**：Viper
 - **ORM**：GORM
+- **配置管理**：Viper
+- **Bot 整合**：Line Bot SDK、Telegram Bot API
+- **測試框架**：Go testing、Testify
+
+### 前端 (Vue)
+
+- **框架**：Vue.js 3.5+
+- **建置工具**：Vite 7.x
+- **UI 框架**：Element Plus 2.x
+- **狀態管理**：Pinia
+- **圖標庫**：Element Plus Icons
+
+## 專案結構
+
+```text
+TourHelper/
+├── backend/                 # 後端 Go 專案
+│   ├── cmd/tourhelper/     # 主程式進入點
+│   ├── internal/           # 私有應用程式碼
+│   ├── pkg/                # 可重用的公開函式庫
+│   ├── configs/            # 設定檔
+│   └── README.md           # 後端說明文件
+├── vue/                     # 前端 Vue.js 專案
+│   ├── src/                # 原始碼
+│   ├── public/             # 靜態資源
+│   └── README.md           # 前端說明文件
+├── .claude/                 # Claude Code 設定
+├── CLAUDE.md                # Claude 專案說明
+└── README.md                # 本檔案
+```
+
+詳細的專案結構請參考：
+
+- [後端專案結構](backend/README.md#專案結構)
+- [前端專案結構](vue/README.md#專案結構)
 
 ## 快速開始
 
 ### 環境需求
 
 - Go 1.25 或更高版本
+- Node.js 18+ (前端開發用)
 - （可選）MySQL 或 PostgreSQL
 
-### 安裝步驟
+### 後端安裝與執行
 
 1. Clone 專案
 
-```bash
-git clone https://github.com/yourusername/TourHelper.git
-cd TourHelper
-```
+   ```bash
+   git clone https://github.com/yourusername/TourHelper.git
+   cd TourHelper
+   ```
 
-2. 安裝依賴
+1. 進入後端目錄並安裝依賴
 
-```bash
-go mod download
-```
+   ```bash
+   cd backend
+   go mod download
+   ```
 
-3. 設定環境變數
+1. 設定環境變數
 
-```bash
-cp .env.example .env
-cp configs/config.example.yaml configs/config.yaml
-# 編輯 .env 或 config.yaml，填入必要的 API 金鑰
-```
+   ```bash
+   cp configs/config.example.yaml configs/config.yaml
+   # 編輯 config.yaml，填入必要的 API 金鑰
+   ```
 
-4. 執行程式
+1. 執行程式
 
-```bash
-# 開發模式
-go run cmd/tourhelper/main.go
+   ```bash
+   # 開發模式
+   go run cmd/tourhelper/main.go
 
-# 或建置後執行
-go build -o tourhelper cmd/tourhelper/main.go
-./tourhelper
-```
+   # 或建置後執行
+   go build -o tourhelper cmd/tourhelper/main.go
+   ./tourhelper
+   ```
+
+詳細的後端開發指南請參考 [backend/README.md](backend/README.md)
+
+### 前端安裝與執行
+
+1. 進入前端目錄並安裝依賴
+
+   ```bash
+   cd vue
+   npm install
+   ```
+
+1. 執行開發伺服器
+
+   ```bash
+   npm run dev
+   ```
+
+1. 建置生產版本
+
+   ```bash
+   npm run build
+   ```
+
+詳細的前端開發指南請參考 [vue/README.md](vue/README.md)
 
 ## 設定說明
 
 ### Line Bot 設定
 
 1. 在 [Line Developers](https://developers.line.biz/) 建立 Messaging API Channel
-2. 取得 Channel Secret 和 Channel Access Token
-3. 在 `config.yaml` 或環境變數中設定：
+1. 取得 Channel Secret 和 Channel Access Token
+1. 在 `backend/configs/config.yaml` 中設定：
 
    ```yaml
    line:
@@ -81,8 +142,8 @@ go build -o tourhelper cmd/tourhelper/main.go
 ### Telegram Bot 設定
 
 1. 透過 [@BotFather](https://t.me/botfather) 建立 Bot
-2. 取得 Bot Token
-3. 在 `config.yaml` 或環境變數中設定：
+1. 取得 Bot Token
+1. 在 `backend/configs/config.yaml` 中設定：
 
    ```yaml
    telegram:
@@ -100,74 +161,43 @@ weather:
   provider: openweathermap
 ```
 
-### 地圖 API 設定
-
-支援 Google Maps、HERE、Mapbox 等：
+### 資料庫設定
 
 ```yaml
-maps:
-  api_key: YOUR_API_KEY
-  provider: google
+database:
+  driver: mysql 
+  dsn: tourhelper.db
+  # MySQL 範例：
+  # dsn: user:password@tcp(localhost:3306)/tourhelper?charset=utf8mb4&parseTime=True
+  # PostgreSQL 範例：
+  # dsn: host=localhost user=user password=password dbname=tourhelper port=5432 sslmode=disable
 ```
 
-## 開發指令
+更多設定說明請參考 [backend/README.md#設定說明](backend/README.md#設定說明)
 
-```bash
-# 執行測試
-go test ./...
+## 開發
 
-# 執行特定測試
-go test -run TestFunctionName ./path/to/package
+### 後端開發
 
-# 格式化程式碼
-go fmt ./...
+請參考 [backend/README.md](backend/README.md) 了解：
 
-# 執行 linter
-golangci-lint run
+- 開發指令
+- 測試方法
+- 程式碼品質工具
+- 專案架構
 
-# 建置
-go build -o tourhelper cmd/tourhelper/main.go
-```
+### 前端開發
 
-## 專案結構
+請參考 [vue/README.md](vue/README.md) 了解：
 
-```text
-TourHelper/
-├── cmd/
-│   └── tourhelper/      # 主程式進入點
-├── internal/
-│   ├── config/          # 設定管理
-│   ├── models/          # 資料模型
-│   ├── handlers/        # HTTP 處理器
-│   ├── services/        # 業務邏輯服務
-│   ├── bot/
-│   │   ├── line/        # Line Bot 整合
-│   │   └── telegram/    # Telegram Bot 整合
-│   └── middleware/      # 中介軟體
-├── pkg/
-│   └── utils/           # 工具函式
-├── configs/             # 設定檔
-├── web/                 # 前端檔案
-└── test/                # 測試檔案
-```
+- 開發指令
+- 元件說明
+- 狀態管理
+- 樣式指南
 
-## API 端點
+## 部署
 
-### REST API
-
-- `GET /health` - 健康檢查
-- `GET /api/v1/recommendations` - 取得旅遊推薦
-- `POST /api/v1/user/preferences` - 更新使用者偏好
-- `GET /api/v1/user/preferences` - 取得使用者偏好
-
-### Webhook
-
-- `POST /webhook/line` - Line Bot webhook
-- `POST /webhook/telegram` - Telegram Bot webhook
-
-### WebSocket
-
-- `GET /ws` - WebSocket 連線（開發中）
+（待補充：Docker、Docker Compose 等部署方式）
 
 ## 授權
 
@@ -176,3 +206,13 @@ MIT License
 ## 貢獻
 
 歡迎提交 Issue 或 Pull Request！
+
+## 相關連結
+
+- [Line Bot 開發文件](https://developers.line.biz/en/docs/messaging-api/)
+- [Telegram Bot API](https://core.telegram.org/bots/api)
+- [Gin Web Framework](https://gin-gonic.com/)
+- [GORM 文件](https://gorm.io/)
+- [Vue.js 文件](https://vuejs.org/)
+- [Element Plus 文件](https://element-plus.org/)
+- [Pinia 文件](https://pinia.vuejs.org/)

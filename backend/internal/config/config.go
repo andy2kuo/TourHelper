@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
+	"runtime"
 
 	"github.com/spf13/viper"
 )
@@ -14,24 +16,30 @@ type Config struct {
 	Telegram TelegramBotConfig
 	Weather  WeatherConfig
 	Maps     MapsConfig
+	Log      LogConfig
 }
 
 // ServerConfig HTTP 伺服器設定
 type ServerConfig struct {
-	Host string
-	Port string
-	Mode string // debug, release
+	Host    string
+	Port    string
+	Env     string
+	Version string
 }
 
-// DatabaseConfig 資料庫設定
+// DatabaseConfig 資料庫設定（MySQL）
 type DatabaseConfig struct {
-	Type     string // mysql, postgres, sqlite
-	Host     string
-	Port     string
-	User     string
-	Password string
-	DBName   string
-	SSLMode  string
+	Host            string
+	Port            string
+	User            string
+	Password        string
+	DBName          string
+	Charset         string
+	ParseTime       bool
+	Loc             string
+	MaxIdleConns    int
+	MaxOpenConns    int
+	ConnMaxLifetime int // 秒
 }
 
 // LineBotConfig Line Bot 設定
@@ -59,12 +67,36 @@ type MapsConfig struct {
 	Provider string // google, here, mapbox, etc.
 }
 
+// LogConfig 日誌設定
+type LogConfig struct {
+	MaxSize    int // MB
+	MaxBackups int // 保留的舊日誌檔案數量
+	MaxAge     int // 保留的天數
+	Compress   bool
+}
+
 // Load 載入設定檔
-func Load() (*Config, error) {
+func Load(serviceName, env, version string) (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath("./configs")
-	viper.AddConfigPath(".")
+
+	// 根據環境和作業系統設定設定檔路徑
+	if env == "dev" {
+		// 開發環境：從專案目錄讀取
+		viper.AddConfigPath("./configs")
+		viper.AddConfigPath(".")
+	} else {
+		// 生產環境：根據作業系統選擇路徑
+		var configPath string
+		if runtime.GOOS == "windows" {
+			// Windows: C:/ProgramData/{SERVICE_NAME}/configs
+			configPath = filepath.Join("C:", "ProgramData", serviceName, "configs")
+		} else {
+			// Linux/Unix: /etc/{SERVICE_NAME}/configs
+			configPath = filepath.Join("/etc", serviceName, "configs")
+		}
+		viper.AddConfigPath(configPath)
+	}
 
 	// 設定環境變數前綴
 	viper.SetEnvPrefix("TOURHELPER")
@@ -88,6 +120,10 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("解析設定檔錯誤: %w", err)
 	}
 
+	// 設定從啟動參數傳入的值
+	config.Server.Env = env
+	config.Server.Version = version
+
 	return &config, nil
 }
 
@@ -98,12 +134,18 @@ func setDefaults() {
 	viper.SetDefault("server.port", "8080")
 	viper.SetDefault("server.mode", "debug")
 
-	// Database 預設值
-	viper.SetDefault("database.type", "sqlite")
+	// Database 預設值（MySQL）
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", "3306")
-	viper.SetDefault("database.dbname", "tourhelper.db")
-	viper.SetDefault("database.sslmode", "disable")
+	viper.SetDefault("database.user", "root")
+	viper.SetDefault("database.password", "")
+	viper.SetDefault("database.dbname", "tourhelper")
+	viper.SetDefault("database.charset", "utf8mb4")
+	viper.SetDefault("database.parsetime", true)
+	viper.SetDefault("database.loc", "Local")
+	viper.SetDefault("database.maxidleconns", 10)
+	viper.SetDefault("database.maxopenconns", 100)
+	viper.SetDefault("database.connmaxlifetime", 3600) // 1 小時
 
 	// Line Bot 預設值
 	viper.SetDefault("line.enabled", false)
@@ -116,4 +158,10 @@ func setDefaults() {
 
 	// Maps 預設值
 	viper.SetDefault("maps.provider", "google")
+
+	// Log 預設值
+	viper.SetDefault("log.maxsize", 100)    // 100 MB
+	viper.SetDefault("log.maxbackups", 3)   // 保留 3 個備份
+	viper.SetDefault("log.maxage", 28)      // 保留 28 天
+	viper.SetDefault("log.compress", true)  // 壓縮舊檔案
 }
