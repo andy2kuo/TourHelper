@@ -14,10 +14,10 @@ import (
 
 // HTTPServer HTTP 伺服器實作
 type HTTPServer struct {
-	router      *gin.Engine
-	server      *http.Server
-	config      *Options
-	httpServer  *http.Server
+	router             *gin.Engine
+	config             *Options
+	httpServer         *http.Server
+	healthCheckHandler *HealthCheckHandler
 }
 
 // NewHTTPServer 建立新的 HTTP 伺服器
@@ -33,9 +33,17 @@ func NewHTTPServer(opts *Options) *HTTPServer {
 	// 建立 Gin router
 	r := gin.Default()
 
+	// 建立 handlers
+	healthCheckHandler := NewHealthCheckHandler(
+		opts.ServiceName,
+		opts.Config.Server.Env,
+		opts.Config.Server.Version,
+	)
+
 	s := &HTTPServer{
-		router: r,
-		config: opts,
+		router:             r,
+		config:             opts,
+		healthCheckHandler: healthCheckHandler,
 	}
 
 	// 註冊路由
@@ -68,17 +76,7 @@ func (s *HTTPServer) setupRoutes() {
 	}
 
 	// 健康檢查
-	s.router.GET("/health", s.healthCheck)
-}
-
-// healthCheck 健康檢查端點
-func (s *HTTPServer) healthCheck(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"status":  "ok",
-		"service": s.config.ServiceName,
-		"env":     s.config.Config.Server.Env,
-		"version": s.config.Config.Server.Version,
-	})
+	s.router.GET("/health", s.healthCheckHandler.Handle)
 }
 
 // Start 啟動 HTTP 伺服器

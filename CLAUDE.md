@@ -124,58 +124,7 @@ go vet ./...
 
 ## Project Structure
 
-目前專案已建立以下結構：
-
-```text
-TourHelper/
-├── backend/                 # 後端 Go 專案
-│   ├── cmd/
-│   │   └── tourhelper/     # 主程式進入點
-│   │       └── main.go     # 應用程式啟動檔案
-│   ├── internal/           # 私有應用程式碼
-│   │   ├── config/        # 設定管理
-│   │   │   └── config.go  # 使用 Viper 管理設定
-│   │   ├── models/        # 資料模型
-│   │   │   ├── models.go  # 資料結構定義
-│   │   │   └── database.go # 資料庫初始化
-│   │   ├── handlers/      # HTTP 請求處理器
-│   │   │   └── handlers.go # API 端點處理
-│   │   ├── services/      # 業務邏輯服務
-│   │   │   ├── recommendation.go  # 推薦演算法
-│   │   │   └── weather.go         # 天氣服務
-│   │   └── bot/           # Bot 整合
-│   │       ├── line/      # Line Bot 實作
-│   │       │   └── line.go
-│   │       └── telegram/  # Telegram Bot 實作
-│   │           └── telegram.go
-│   ├── pkg/               # 可重用的公開函式庫
-│   │   └── utils/        # 工具函式
-│   │       ├── utils.go
-│   │       └── utils_test.go
-│   ├── configs/          # 設定檔
-│   │   └── config.example.yaml
-│   ├── .env.example           # 環境變數範例
-│   ├── .air.toml             # Air 自動重載設定
-│   ├── Makefile              # 開發指令快捷方式
-│   ├── go.mod            # Go 模組依賴
-│   ├── go.sum            # Go 模組校驗
-│   ├── .gitignore        # Git 忽略檔案
-│   └── README.md         # 後端說明文件
-├── vue/                    # 前端 Vue.js 專案
-│   ├── src/               # 原始碼
-│   │   ├── components/   # Vue 元件
-│   │   ├── stores/       # Pinia 狀態管理
-│   │   ├── App.vue       # 根元件
-│   │   └── main.js       # 應用程式入口
-│   ├── public/           # 靜態資源
-│   ├── index.html        # HTML 入口檔案
-│   ├── vite.config.js    # Vite 配置
-│   ├── package.json      # 前端依賴
-│   └── README.md         # 前端說明文件
-├── .claude/              # Claude Code 設定
-├── CLAUDE.md             # Claude 專案說明
-└── README.md             # 專案說明文件
-```
+請參考./backend/README.md 和 ./vue/README.md 了解後端和前端的詳細專案結構。
 
 ### 重要檔案說明
 

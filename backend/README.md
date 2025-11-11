@@ -25,14 +25,13 @@ backend/
 │   │   └── config.go       # 使用 Viper 管理設定，支援 YAML 和環境變數
 │   ├── server/             # 伺服器實作
 │   │   ├── server.go       # Server 介面定義
-│   │   └── http.go         # HTTP 伺服器實作（Gin）
+│   │   ├── http.go         # HTTP 伺服器實作（Gin）
+│   │   └── handlers.go     # HTTP 請求處理器
 │   ├── logger/             # 日誌管理
 │   │   └── logger.go       # Logrus + Lumberjack，支援 log rotation
 │   ├── models/             # 資料模型
 │   │   ├── models.go       # 定義 User, Destination, Tag 等資料結構
 │   │   └── database.go     # 資料庫初始化、遷移和範例資料填充
-│   ├── handlers/           # HTTP 請求處理器
-│   │   └── handlers.go     # 處理 API 請求（推薦、偏好設定等）
 │   ├── services/           # 業務邏輯服務
 │   │   ├── recommendation.go  # 推薦演算法核心邏輯
 │   │   └── weather.go         # 天氣資訊服務
@@ -79,10 +78,13 @@ backend/
   - 註冊所有 HTTP 路由
   - 支援靜態檔案服務
   - 整合 Line 和 Telegram Bot webhook
-  - 提供健康檢查端點
   - 支援優雅關閉
 
-**設計理念**：透過 Server 介面，未來可以輕鬆新增其他類型的伺服器（例如：gRPC Server、WebSocket Server 等），而不需要修改 main.go
+- **handlers.go**：HTTP 請求處理器
+  - HealthCheckHandler：處理健康檢查請求
+  - 未來可新增其他 API 端點處理器
+
+**設計理念**：透過 Server 介面，未來可以輕鬆新增其他類型的伺服器（例如：gRPC Server、WebSocket Server 等），而不需要修改 main.go。所有與 HTTP 相關的處理器都集中在 server 套件中，便於管理和維護。
 
 ### internal/config/config.go
 
@@ -98,15 +100,6 @@ backend/
 
 - `models.go`：定義所有資料結構（User, Destination, Tag, Preference 等），包含 GORM 標籤
 - `database.go`：資料庫連線初始化、自動遷移、範例資料填充功能
-
-### internal/handlers/
-
-HTTP 請求處理器，負責：
-
-- 解析請求參數
-- 調用 service 層
-- 回傳 JSON 回應
-- 錯誤處理
 
 ### internal/services/
 
