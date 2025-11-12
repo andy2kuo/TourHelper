@@ -29,12 +29,17 @@ backend/
 │   │   └── handlers.go     # HTTP 請求處理器
 │   ├── logger/             # 日誌管理
 │   │   └── logger.go       # Logrus + Lumberjack，支援 log rotation
+│   ├── services/           # 業務邏輯服務層
+│   │   ├── services.go     # Services 單例管理
+│   │   ├── recommendation_service.go  # 推薦服務
+│   │   └── weather_service.go         # 天氣服務
+│   ├── dao/                # 資料庫存取層（Data Access Object）
+│   │   ├── dao.go          # DAO 單例管理
+│   │   ├── user_dao.go     # 使用者 CRUD 操作
+│   │   └── destination_dao.go  # 景點 CRUD 操作
 │   ├── models/             # 資料模型
 │   │   ├── models.go       # 定義 User, Destination, Tag 等資料結構
 │   │   └── database.go     # 資料庫初始化、遷移和範例資料填充
-│   ├── services/           # 業務邏輯服務
-│   │   ├── recommendation.go  # 推薦演算法核心邏輯
-│   │   └── weather.go         # 天氣資訊服務
 │   └── bot/                # Bot 整合
 │       ├── line/           # Line Bot 實作
 │       │   └── line.go     # 處理 Line webhook、訊息回覆
@@ -51,6 +56,54 @@ backend/
 ├── .gitignore              # Git 忽略檔案
 └── README.md               # 本檔案
 ```
+
+## 分層架構
+
+本專案採用經典的分層架構設計，確保關注點分離和程式碼可維護性：
+
+```text
+外部請求（HTTP / Bot / gRPC 等）
+    ↓
+[Handlers] ← server/handlers.go
+    ↓ 處理請求/回應、參數驗證
+[Services] ← services/
+    ↓ 業務邏輯處理
+[DAO] ← dao/
+    ↓ 資料庫 CRUD 操作
+[Models] ← models/
+    ↓ 資料結構定義
+資料庫
+```
+
+### 各層職責
+
+1. **Handlers（處理器層）**
+   - 位置：`internal/server/handlers.go`
+   - 職責：處理各種請求和回應、參數解析和驗證、呼叫 Service 層
+   - 範例：HealthCheckHandler
+
+2. **Services（業務邏輯層）**
+   - 位置：`internal/services/`
+   - 職責：實作核心業務邏輯、協調多個 DAO、處理複雜的業務規則
+   - 特點：使用單例模式（`services.Get()`）
+   - 範例：RecommendationService、WeatherService
+
+3. **DAO（資料存取層）**
+   - 位置：`internal/dao/`
+   - 職責：封裝所有資料庫 CRUD 操作、處理查詢條件
+   - 特點：使用單例模式（`dao.Get()`）
+   - 範例：UserDAO、DestinationDAO
+
+4. **Models（資料模型層）**
+   - 位置：`internal/models/`
+   - 職責：定義資料結構、GORM 標籤、資料庫遷移
+   - 範例：User、Destination、Tag
+
+### 依賴關係
+
+- Handlers → Services → DAO → Models
+- 每一層只能依賴下一層，不能跨層調用
+- 使用介面定義行為，便於測試和替換實作
 
 ## 核心模組說明
 
@@ -103,10 +156,51 @@ backend/
 
 ### internal/services/
 
-業務邏輯層，核心功能：
+業務邏輯層，負責處理核心業務邏輯：
 
-- `recommendation.go`：推薦演算法，根據位置、天氣、距離計算適合度評分
-- `weather.go`：整合第三方天氣 API，取得即時天氣資訊
+- **services.go**：Services 單例管理
+  - 使用 `services.Get()` 取得 services 實例
+  - 集中管理所有 service 的初始化
+
+- **recommendation_service.go**：推薦服務
+  - 實作推薦演算法核心邏輯
+  - 根據位置、天氣、距離計算適合度評分
+  - 協調多個 DAO 取得資料
+
+- **weather_service.go**：天氣服務
+  - 整合第三方天氣 API
+  - 處理天氣資料的業務邏輯
+
+### internal/dao/
+
+資料存取層（Data Access Object），負責所有資料庫 CRUD 操作：
+
+- **dao.go**：DAO 單例管理
+  - 使用 `dao.Get()` 取得 DAO 實例
+  - 需先呼叫 `dao.SetDB(db)` 設定資料庫連線
+  - 集中管理所有 DAO 的初始化
+
+- **user_dao.go**：使用者 DAO
+  - 封裝使用者資料的 CRUD 操作
+  - 提供查詢、建立、更新、刪除等方法
+
+- **destination_dao.go**：景點 DAO
+  - 封裝景點資料的 CRUD 操作
+  - 提供地理位置相關查詢等方法
+
+**使用範例**：
+
+```go
+// 初始化
+dao.SetDB(db)
+
+// 使用
+daos := dao.Get()
+services := services.Get()
+
+// 呼叫 service
+result := services.Recommendation.GetRecommendations(...)
+```
 
 ### internal/bot/
 

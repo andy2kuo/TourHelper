@@ -124,17 +124,36 @@ go vet ./...
 
 ## Project Structure
 
-請參考./backend/README.md 和 ./vue/README.md 了解後端和前端的詳細專案結構。
+請參考 ./backend/README.md 和 ./vue/README.md 了解後端和前端的詳細專案結構。
 
-### 重要檔案說明
+### 後端分層架構
 
-* **main.go**: 應用程式進入點，初始化設定、建立 Gin router、註冊所有路由和中介軟體
-* **config.go**: 使用 Viper 載入 YAML 設定檔和環境變數
-* **models.go**: 定義所有資料模型，包含 GORM 標籤
-* **database.go**: 資料庫連線初始化、自動遷移和範例資料填充功能
-* **handlers.go**: HTTP API 端點處理器
-* **recommendation.go**: 推薦演算法，根據位置、天氣、距離計算適合度評分
-* **line.go / telegram.go**: Bot 整合實作，處理訊息和位置資訊
+本專案後端採用經典的分層架構設計：
+
+```text
+外部請求（HTTP / Bot / gRPC 等）
+    ↓
+[Handlers] ← server/handlers.go（處理請求/回應、參數驗證）
+    ↓
+[Services] ← services/（業務邏輯處理）
+    ↓
+[DAO] ← dao/（資料庫 CRUD 操作）
+    ↓
+[Models] ← models/（資料結構定義）
+    ↓
+資料庫
+```
+
+### 重要套件說明
+
+* **cmd/tourhelper/main.go**: 應用程式進入點，初始化設定、建立 server、優雅關閉
+* **internal/config/**: 設定管理，使用 Viper 載入 YAML 設定檔和環境變數
+* **internal/server/**: 伺服器實作，包含 Server 介面、HTTP 伺服器和 Handlers
+* **internal/services/**: 業務邏輯層，處理核心業務邏輯（使用單例模式）
+* **internal/dao/**: 資料存取層，封裝所有資料庫 CRUD 操作（使用單例模式）
+* **internal/models/**: 資料模型層，定義資料結構和 GORM 標籤
+* **internal/logger/**: 日誌管理，使用 Logrus + Lumberjack
+* **internal/bot/**: Bot 整合，包含 Line 和 Telegram Bot 實作
 
 ## Environment Configuration
 
