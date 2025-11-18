@@ -4,103 +4,115 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
 
 // Config 包含所有應用程式設定
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Line     LineBotConfig
-	Telegram TelegramBotConfig
-	Log      LogConfig
+	Server   ServerConfig       `mapstructure:"server" json:"server" yaml:"server"`
+	Database DatabaseConfig     `mapstructure:"database" json:"database" yaml:"database"`
+	Line     LineBotConfig      `mapstructure:"line" json:"line" yaml:"line"`
+	Telegram TelegramBotConfig  `mapstructure:"telegram" json:"telegram" yaml:"telegram"`
+	Log      LogConfig          `mapstructure:"log" json:"log" yaml:"log"`
 }
 
 // ServerConfig HTTP 伺服器設定
 type ServerConfig struct {
-	Host    string
-	Port    string
-	Env     string
-	Version string
+	Host         string        `mapstructure:"host" json:"host" yaml:"host"`
+	Port         int           `mapstructure:"port" json:"port" yaml:"port"`
+	CertFile     string        `mapstructure:"certFile" json:"certFile" yaml:"certFile"`             // SSL 憑證檔案路徑 (.pem 或 .crt)
+	KeyFile      string        `mapstructure:"keyFile" json:"keyFile" yaml:"keyFile"`                // SSL 私鑰檔案路徑 (.key)，如果憑證和私鑰在同一個 PEM 檔案中則不需要
+	ReadTimeout  time.Duration `mapstructure:"readTimeout" json:"readTimeout" yaml:"readTimeout"`    // HTTP 讀取超時時間
+	WriteTimeout time.Duration `mapstructure:"writeTimeout" json:"writeTimeout" yaml:"writeTimeout"` // HTTP 寫入超時時間
+	CORS         CORSConfig    `mapstructure:"cors" json:"cors" yaml:"cors"`
+}
+
+type CORSConfig struct {
+	Enabled      bool     `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	AllowOrigins []string `mapstructure:"allowOrigins" json:"allowOrigins" yaml:"allowOrigins"`
+	AllowMethods []string `mapstructure:"allowMethods" json:"allowMethods" yaml:"allowMethods"`
+	AllowHeaders []string `mapstructure:"allowHeaders" json:"allowHeaders" yaml:"allowHeaders"`
 }
 
 // DatabaseConfig 資料庫設定（MySQL Master-Slave 架構）
 type DatabaseConfig struct {
-	Masters []MasterDBConfig // Master 資料庫列表（可根據 Schema 區分）
-	Slaves  []SlaveDBConfig  // Slave 資料庫列表（數量不定，可為空）
+	Masters []MasterDBConfig `mapstructure:"masters" json:"masters" yaml:"masters"` // Master 資料庫列表（可根據 Schema 區分）
+	Slaves  []SlaveDBConfig  `mapstructure:"slaves" json:"slaves" yaml:"slaves"`    // Slave 資料庫列表（數量不定，可為空）
 
 	// 全域連線池設定（所有 Master/Slave 共用）
-	MaxIdleConns    int
-	MaxOpenConns    int
-	ConnMaxLifetime int // 秒
+	MaxIdleConns    int `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns"`
+	MaxOpenConns    int `mapstructure:"maxOpenConns" json:"maxOpenConns" yaml:"maxOpenConns"`
+	ConnMaxLifetime int `mapstructure:"connMaxLifetime" json:"connMaxLifetime" yaml:"connMaxLifetime"` // 秒
 }
 
 // MasterDBConfig Master 資料庫設定
 type MasterDBConfig struct {
-	Name     string // Master 識別名稱（例如：main, analytics）
-	Host     string
-	Port     string
-	User     string
-	Password string
-	DBName   string
-	Charset  string
-	ParseTime bool
-	Loc      string
+	Name      string `mapstructure:"name" json:"name" yaml:"name"`           // Master 識別名稱（例如：main, analytics）
+	Host      string `mapstructure:"host" json:"host" yaml:"host"`
+	Port      string `mapstructure:"port" json:"port" yaml:"port"`
+	User      string `mapstructure:"user" json:"user" yaml:"user"`
+	Password  string `mapstructure:"password" json:"password" yaml:"password"`
+	DBName    string `mapstructure:"dbname" json:"dbname" yaml:"dbname"`
+	Charset   string `mapstructure:"charset" json:"charset" yaml:"charset"`
+	ParseTime bool   `mapstructure:"parsetime" json:"parsetime" yaml:"parsetime"`
+	Loc       string `mapstructure:"loc" json:"loc" yaml:"loc"`
 
 	// 可選：針對特定 Schema 的設定
-	Schema string // 如果需要根據 Schema 區分 Master
+	Schema string `mapstructure:"schema" json:"schema" yaml:"schema"` // 如果需要根據 Schema 區分 Master
 
 	// 可選：此 Master 專用的連線池設定（覆蓋全域設定）
-	MaxIdleConns    *int // nil 表示使用全域設定
-	MaxOpenConns    *int
-	ConnMaxLifetime *int
+	MaxIdleConns    *int `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns"`          // nil 表示使用全域設定
+	MaxOpenConns    *int `mapstructure:"maxOpenConns" json:"maxOpenConns" yaml:"maxOpenConns"`
+	ConnMaxLifetime *int `mapstructure:"connMaxLifetime" json:"connMaxLifetime" yaml:"connMaxLifetime"`
 }
 
 // SlaveDBConfig Slave 資料庫設定
 type SlaveDBConfig struct {
-	Name     string // Slave 識別名稱（例如：slave1, slave2）
-	Host     string
-	Port     string
-	User     string
-	Password string
-	DBName   string
-	Charset  string
-	ParseTime bool
-	Loc      string
+	Name      string `mapstructure:"name" json:"name" yaml:"name"`           // Slave 識別名稱（例如：slave1, slave2）
+	Host      string `mapstructure:"host" json:"host" yaml:"host"`
+	Port      string `mapstructure:"port" json:"port" yaml:"port"`
+	User      string `mapstructure:"user" json:"user" yaml:"user"`
+	Password  string `mapstructure:"password" json:"password" yaml:"password"`
+	DBName    string `mapstructure:"dbname" json:"dbname" yaml:"dbname"`
+	Charset   string `mapstructure:"charset" json:"charset" yaml:"charset"`
+	ParseTime bool   `mapstructure:"parsetime" json:"parsetime" yaml:"parsetime"`
+	Loc       string `mapstructure:"loc" json:"loc" yaml:"loc"`
 
 	// 負載平衡權重（數值越大，被選中機率越高）
-	Weight int
+	Weight int `mapstructure:"weight" json:"weight" yaml:"weight"`
 
 	// 可選：此 Slave 專用的連線池設定
-	MaxIdleConns    *int
-	MaxOpenConns    *int
-	ConnMaxLifetime *int
+	MaxIdleConns    *int `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns"`
+	MaxOpenConns    *int `mapstructure:"maxOpenConns" json:"maxOpenConns" yaml:"maxOpenConns"`
+	ConnMaxLifetime *int `mapstructure:"connMaxLifetime" json:"connMaxLifetime" yaml:"connMaxLifetime"`
 
 	// 可選：指定此 Slave 對應的 Master
-	MasterName string
+	MasterName string `mapstructure:"masterName" json:"masterName" yaml:"masterName"`
 }
 
 // LineBotConfig Line Bot 設定
 type LineBotConfig struct {
-	Enabled            bool
-	ChannelSecret      string
-	ChannelAccessToken string
+	Enabled            bool   `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	ChannelSecret      string `mapstructure:"channelSecret" json:"channelSecret" yaml:"channelSecret"`
+	ChannelAccessToken string `mapstructure:"channelAccessToken" json:"channelAccessToken" yaml:"channelAccessToken"`
 }
 
 // TelegramBotConfig Telegram Bot 設定
 type TelegramBotConfig struct {
-	Enabled bool
-	Token   string
+	Enabled bool   `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	Token   string `mapstructure:"token" json:"token" yaml:"token"`
 }
 
 // LogConfig 日誌設定
 type LogConfig struct {
-	Level      string // 日誌等級: debug, info, warn, error, fatal
-	MaxSize    int    // MB
-	MaxBackups int    // 保留的舊日誌檔案數量
-	MaxAge     int    // 保留的天數
-	Compress   bool
+	Level      string `mapstructure:"level" json:"level" yaml:"level"`             // 日誌等級: debug, info, warn, error, fatal
+	MaxSize    int    `mapstructure:"maxSize" json:"maxSize" yaml:"maxSize"`       // MB
+	MaxBackups int    `mapstructure:"maxBackups" json:"maxBackups" yaml:"maxBackups"` // 保留的舊日誌檔案數量
+	MaxAge     int    `mapstructure:"maxAge" json:"maxAge" yaml:"maxAge"`          // 保留的天數
+	Compress   bool   `mapstructure:"compress" json:"compress" yaml:"compress"`
 }
 
 // Load 載入設定檔
@@ -127,7 +139,7 @@ func Load(serviceName, env, version string) (*Config, error) {
 	}
 
 	// 設定環境變數前綴
-	viper.SetEnvPrefix("TOURHELPER")
+	viper.SetEnvPrefix(strings.ToUpper(serviceName))
 	viper.AutomaticEnv()
 
 	// 設定預設值
@@ -148,10 +160,7 @@ func Load(serviceName, env, version string) (*Config, error) {
 		return nil, fmt.Errorf("解析設定檔錯誤: %w", err)
 	}
 
-	// 設定從啟動參數傳入的值
-	config.Server.Env = env
-	config.Server.Version = version
-
+	fmt.Println("設定檔載入成功")
 	return &config, nil
 }
 

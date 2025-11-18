@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/andy2kuo/TourHelper/internal/bot/line"
 	"github.com/andy2kuo/TourHelper/internal/bot/telegram"
@@ -15,16 +14,15 @@ import (
 
 // HTTPServer HTTP 伺服器實作
 type HTTPServer struct {
-	router             *gin.Engine
-	config             *server.Options
-	httpServer         *http.Server
-	healthCheckHandler *HealthCheckHandler
+	router     *gin.Engine
+	opt        *server.Options
+	httpServer *http.Server
 }
 
 // Init 建立新的 HTTP 伺服器
-func (s *HTTPServer) Init(opts *server.Options) *HTTPServer {
+func (s *HTTPServer) Init(opts *server.Options) error {
 	// 設定 Gin 模式
-	if opts.ServiceEnv == "release" || opts.ServiceEnv == "production" {
+	if opts.ServiceEnv == "release" {
 		gin.SetMode(gin.ReleaseMode)
 		logger.Info("Gin 設定為 Release 模式")
 	} else {
@@ -34,21 +32,13 @@ func (s *HTTPServer) Init(opts *server.Options) *HTTPServer {
 	// 建立 Gin router
 	r := gin.Default()
 
-	// 建立 handlers
-	healthCheckHandler := NewHealthCheckHandler(
-		opts.ServiceName,
-		opts.Config.Server.Env,
-		opts.Config.Server.Version,
-	)
-
 	s.router = r
-	s.config = opts
-	s.healthCheckHandler = healthCheckHandler
+	s.opt = opts
 
 	// 註冊路由
 	s.setupRoutes()
 
-	return s
+	return nil
 }
 
 // setupRoutes 設定所有路由
@@ -58,29 +48,28 @@ func (s *HTTPServer) setupRoutes() {
 	s.router.StaticFile("/", "./web/dist/index.html")
 
 	// Line Bot webhook
-	if s.config.Config.Line.Enabled {
+	if s.opt.Config.Line.Enabled {
 		lineBot := line.NewBot(
-			s.config.Config.Line.ChannelSecret,
-			s.config.Config.Line.ChannelAccessToken,
+			s.opt.Config.Line.ChannelSecret,
+			s.opt.Config.Line.ChannelAccessToken,
 		)
 		s.router.POST("/webhook/line", lineBot.HandleWebhook)
 		logger.Info("Line Bot 已啟用")
 	}
 
 	// Telegram Bot webhook
-	if s.config.Config.Telegram.Enabled {
-		telegramBot := telegram.NewBot(s.config.Config.Telegram.Token)
+	if s.opt.Config.Telegram.Enabled {
+		telegramBot := telegram.NewBot(s.opt.Config.Telegram.Token)
 		s.router.POST("/webhook/telegram", telegramBot.HandleWebhook)
 		logger.Info("Telegram Bot 已啟用")
 	}
 
-	// 健康檢查
-	s.router.GET("/health", s.healthCheckHandler.Handle)
+	// TODO: 在此處添加更多路由
 }
 
 // Start 啟動 HTTP 伺服器
 func (s *HTTPServer) Start() error {
-	addr := s.config.Config.Server.Host + ":" + s.config.Config.Server.Port
+	addr := fmt.Sprintf("%s:%d", s.opt.Config.Server.Host, s.opt.Config.Server.Port)
 
 	s.httpServer = &http.Server{
 		Addr:    addr,
@@ -89,33 +78,47 @@ func (s *HTTPServer) Start() error {
 
 	logger.Infof("HTTP 伺服器啟動於 %s", addr)
 
-	// 在 goroutine 中啟動，以便支援優雅關閉
-	go func() {
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatalf("HTTP 伺服器啟動失敗: %v", err)
+	// 檢查是否有配置 SSL 憑證
+	if s.opt.Config.Server.CertFile != "" {
+		// 使用 HTTPS
+		logger.Infof("伺服器以 HTTPS 模式啟動於 %s", addr)
+		logger.Infof("使用憑證檔案: %s", s.opt.Config.Server.CertFile)
+
+		// 決定使用的私鑰檔案
+		keyFile := s.opt.Config.Server.KeyFile
+		if keyFile == "" {
+			// 如果沒有指定 KeyFile，使用 CertFile（假設憑證和私鑰在同一個 PEM 檔案中）
+			keyFile = s.opt.Config.Server.CertFile
+			logger.Info("使用合併的 PEM 檔案（憑證和私鑰在同一檔案）")
+		} else {
+			logger.Infof("使用私鑰檔案: %s", keyFile)
 		}
-	}()
+
+		// 啟動 HTTPS 伺服器
+		if err := s.httpServer.ListenAndServeTLS(s.opt.Config.Server.CertFile, keyFile); err != nil && err != http.ErrServerClosed {
+			return err
+		}
+	} else {
+		// 使用 HTTP
+		logger.Infof("伺服器以 HTTP 模式啟動於 %s", addr)
+		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			return err
+		}
+	}
 
 	return nil
 }
 
 // Stop 停止 HTTP 伺服器
-func (s *HTTPServer) Stop() error {
+func (s *HTTPServer) Stop(ctx context.Context) error {
 	if s.httpServer == nil {
 		return nil
 	}
 
-	logger.Info("正在關閉 HTTP 伺服器...")
-
-	// 設定 5 秒的超時時間來關閉伺服器
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	if err := s.httpServer.Shutdown(ctx); err != nil {
-		return fmt.Errorf("HTTP 伺服器關閉失敗: %w", err)
+		return err
 	}
 
-	logger.Info("HTTP 伺服器已關閉")
 	return nil
 }
 

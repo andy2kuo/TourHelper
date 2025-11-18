@@ -16,19 +16,30 @@ TourHelper 後端服務，使用 Go 語言和 Gin 框架建構，提供旅遊推
 ## 專案結構
 
 ```text
-backend/
-├── cmd/
-│   └── tourhelper/          # 主程式進入點
-│       └── main.go          # 應用程式啟動檔案，初始化設定、建立 server、優雅關閉
-├── internal/                # 私有應用程式碼
+service/
+├── cmd/                    # 主程式進入點
+│   ├── backend/            # 後端 API 伺服器
+│   │   └── main.go         # 後端伺服器啟動檔案，初始化設定、建立 backend server、優雅關閉
+│   └── frontend/           # 前端伺服器
+│       └── main.go         # 前端伺服器啟動檔案，初始化設定、建立 frontend server、優雅關閉
+├── internal/               # 私有應用程式碼
 │   ├── config/             # 設定管理
 │   │   └── config.go       # 使用 Viper 管理設定，支援 YAML 和環境變數
 │   ├── server/             # 伺服器實作
 │   │   ├── server.go       # Server 介面定義
-│   │   ├── http.go         # HTTP 伺服器實作（Gin）
-│   │   └── handlers.go     # HTTP 請求處理器
+│   │   ├── backend/        # 後端 API 伺服器實作
+│   │   │   ├── backend-server.go   # Backend 伺服器實作（Gin）
+│   │   │   └── backend-handler.go  # Backend API 請求處理器
+│   │   └── frontend/       # 前端伺服器實作
+│   │       ├── frontend-server.go  # Frontend 伺服器實作（Gin）
+│   │       └── frontend-handler.go # Frontend 請求處理器和 Bot webhook
+│   ├── database/           # 資料庫管理
+│   │   ├── database.go     # 資料庫連線管理、初始化
+│   │   └── example_usage.go # 使用範例
 │   ├── logger/             # 日誌管理
-│   │   └── logger.go       # Logrus + Lumberjack，支援 log rotation
+│   │   ├── logger.go       # Logrus + Lumberjack，支援 log rotation
+│   │   ├── umask_unix.go   # Unix/Linux 平台的檔案權限設定
+│   │   └── umask_windows.go # Windows 平台的檔案權限設定
 │   ├── services/           # 業務邏輯服務層
 │   │   ├── services.go     # Services 單例管理
 │   │   ├── recommendation_service.go  # 推薦服務
@@ -64,7 +75,7 @@ backend/
 ```text
 外部請求（HTTP / Bot / gRPC 等）
     ↓
-[Handlers] ← server/handlers.go
+[Handlers] ← server/backend/backend-handler.go 或 server/frontend/frontend-handler.go
     ↓ 處理請求/回應、參數驗證
 [Services] ← services/
     ↓ 業務邏輯處理
@@ -78,9 +89,9 @@ backend/
 ### 各層職責
 
 1. **Handlers（處理器層）**
-   - 位置：`internal/server/handlers.go`
+   - 位置：`internal/server/backend/backend-handler.go` 和 `internal/server/frontend/frontend-handler.go`
    - 職責：處理各種請求和回應、參數解析和驗證、呼叫 Service 層
-   - 範例：HealthCheckHandler
+   - 範例：Backend 的 API handlers、Frontend 的 HealthCheckHandler 和 Bot webhook handlers
 
 2. **Services（業務邏輯層）**
    - 位置：`internal/services/`
@@ -107,14 +118,24 @@ backend/
 
 ## 核心模組說明
 
-### cmd/tourhelper/main.go
+### cmd/backend/main.go
 
-應用程式進入點，負責：
+後端 API 伺服器進入點，負責：
 
 - 載入設定（使用 config.Load）
 - 初始化 Logger
-- 建立 Server 實例
-- 啟動伺服器
+- 建立 Backend Server 實例
+- 啟動後端 API 伺服器
+- 處理優雅關閉（Graceful Shutdown）
+
+### cmd/frontend/main.go
+
+前端伺服器進入點，負責：
+
+- 載入設定（使用 config.Load）
+- 初始化 Logger
+- 建立 Frontend Server 實例
+- 啟動前端伺服器（包含靜態檔案服務和 Bot webhook）
 - 處理優雅關閉（Graceful Shutdown）
 
 ### internal/server/
@@ -126,18 +147,28 @@ backend/
   - `Stop()`：停止伺服器
   - `Name()`：返回伺服器名稱
 
-- **http.go**：HTTP 伺服器實作
-  - 使用 Gin 框架
-  - 註冊所有 HTTP 路由
-  - 支援靜態檔案服務
-  - 整合 Line 和 Telegram Bot webhook
-  - 支援優雅關閉
+- **backend/**：後端 API 伺服器實作
+  - **backend-server.go**：使用 Gin 框架實作 Backend HTTP 伺服器
+    - 註冊後端 API 路由
+    - 支援優雅關閉
+  - **backend-handler.go**：後端 API 請求處理器
+    - 未來可新增各種 API 端點處理器
 
-- **handlers.go**：HTTP 請求處理器
-  - HealthCheckHandler：處理健康檢查請求
-  - 未來可新增其他 API 端點處理器
+- **frontend/**：前端伺服器實作
+  - **frontend-server.go**：使用 Gin 框架實作 Frontend HTTP 伺服器
+    - 註冊前端路由
+    - 支援靜態檔案服務
+    - 整合 Line 和 Telegram Bot webhook
+    - 支援優雅關閉
+  - **frontend-handler.go**：前端請求處理器
+    - HealthCheckHandler：處理健康檢查請求
+    - Bot webhook handlers
 
-**設計理念**：透過 Server 介面，未來可以輕鬆新增其他類型的伺服器（例如：gRPC Server、WebSocket Server 等），而不需要修改 main.go。所有與 HTTP 相關的處理器都集中在 server 套件中，便於管理和維護。
+**設計理念**：透過 Server 介面和前後端分離架構，可以：
+
+1. 獨立部署和擴展前後端伺服器
+2. 輕鬆新增其他類型的伺服器（例如：gRPC Server、WebSocket Server 等）
+3. 清晰的職責劃分：Backend 專注於 API 服務，Frontend 專注於頁面和 Bot 整合
 
 ### internal/config/config.go
 
@@ -247,37 +278,59 @@ go mod tidy
 
 ```bash
 # 開發模式（直接執行）
-go run cmd/tourhelper/main.go
+# 執行後端 API 伺服器
+go run cmd/backend/main.go
+
+# 執行前端伺服器
+go run cmd/frontend/main.go
 
 # 或指定參數
-go run cmd/tourhelper/main.go --config configs/config.yaml
+go run cmd/backend/main.go --config configs/config.yaml
+go run cmd/frontend/main.go --config configs/config.yaml
 ```
 
 ### 建置
 
 ```bash
 # 基本建置
-go build -o tourhelper cmd/tourhelper/main.go
+go build -o backend cmd/backend/main.go
+go build -o frontend cmd/frontend/main.go
 
 # 建置到特定目錄
-go build -o bin/tourhelper cmd/tourhelper/main.go
+go build -o bin/backend cmd/backend/main.go
+go build -o bin/frontend cmd/frontend/main.go
 
 # 建置並注入版本資訊（使用 -ldflags）
+# Backend 伺服器
 go build -ldflags "\
-  -X main.SERVICE_NAME=tour_helper \
+  -X main.SERVICE_NAME=tour_helper_backend \
   -X main.SERVICE_ENV=production \
   -X main.SERVICE_VERSION=1.0.0" \
-  -o tourhelper cmd/tourhelper/main.go
+  -o backend cmd/backend/main.go
+
+# Frontend 伺服器
+go build -ldflags "\
+  -X main.SERVICE_NAME=tour_helper_frontend \
+  -X main.SERVICE_ENV=production \
+  -X main.SERVICE_VERSION=1.0.0" \
+  -o frontend cmd/frontend/main.go
 
 # 開發環境建置
 go build -ldflags "\
-  -X main.SERVICE_NAME=tour_helper \
+  -X main.SERVICE_NAME=tour_helper_backend \
   -X main.SERVICE_ENV=dev \
   -X main.SERVICE_VERSION=0.0.1-dev" \
-  -o tourhelper cmd/tourhelper/main.go
+  -o backend cmd/backend/main.go
+
+go build -ldflags "\
+  -X main.SERVICE_NAME=tour_helper_frontend \
+  -X main.SERVICE_ENV=dev \
+  -X main.SERVICE_VERSION=0.0.1-dev" \
+  -o frontend cmd/frontend/main.go
 
 # 執行建置的檔案
-./tourhelper
+./backend    # 啟動後端 API 伺服器
+./frontend   # 啟動前端伺服器
 ```
 
 **說明**：
@@ -609,12 +662,41 @@ go tool cover -html=coverage.out
    }
    ```
 
-1. 在 `cmd/tourhelper/main.go` 中啟動新的伺服器：
+1. 在 `cmd/backend/main.go` 或 `cmd/frontend/main.go` 中啟動新的伺服器，或建立新的 main.go：
 
    ```go
-   // 建立 HTTP 伺服器
-   httpServer := server.NewHTTPServer(opts)
-   httpServer.Start()
+   // 範例：在新的 cmd/grpc/main.go 中
+   package main
+
+   import (
+       "os"
+       "os/signal"
+       "syscall"
+       "github.com/andy2kuo/TourHelper/service/internal/server"
+   )
+
+   func main() {
+       // 建立 gRPC 伺服器
+       grpcServer := server.NewGRPCServer(opts)
+       grpcServer.Start()
+
+       // 等待中斷信號
+       quit := make(chan os.Signal, 1)
+       signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+       <-quit
+
+       // 關閉伺服器
+       grpcServer.Stop()
+   }
+   ```
+
+   或者在現有的伺服器中同時運行多個伺服器：
+
+   ```go
+   // 在 cmd/backend/main.go 中
+   // 建立 Backend HTTP 伺服器
+   backendServer := server.NewBackendServer(opts)
+   backendServer.Start()
 
    // 建立 gRPC 伺服器
    grpcServer := server.NewGRPCServer(opts)
@@ -626,7 +708,7 @@ go tool cover -html=coverage.out
    <-quit
 
    // 關閉所有伺服器
-   httpServer.Stop()
+   backendServer.Stop()
    grpcServer.Stop()
    ```
 
@@ -634,7 +716,8 @@ go tool cover -html=coverage.out
 
 所有伺服器都支援優雅關閉（Graceful Shutdown）：
 
-- HTTP Server：等待現有請求完成（最多 5 秒）
+- Backend HTTP Server：等待現有請求完成（最多 5 秒）
+- Frontend HTTP Server：等待現有請求完成（最多 5 秒）
 - 其他伺服器：實作各自的優雅關閉邏輯
 
 ## 部署

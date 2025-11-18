@@ -14,10 +14,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var (
-	instance *Logger
-	once     sync.Once
-)
+var instance *Logger
 
 // Logger 封裝 logrus.Logger 並提供額外功能
 type Logger struct {
@@ -189,14 +186,14 @@ func (rw *RotateWriter) Close() error {
 }
 
 // Init 初始化 logger（單例模式）
-func Init(serviceName, env string, logConfig config.LogConfig) *Logger {
-	once.Do(func() {
+func Init(serviceName, env string, logConfig config.LogConfig) error {
+	if instance == nil {
 		logDir := getLogOutputPath(serviceName, env)
 
 		// 建立日誌目錄，權限設為 0755 (rwxr-xr-x)，所有用戶可讀可執行
 		if err := os.MkdirAll(logDir, 0755); err != nil {
 			fmt.Printf("無法建立日誌目錄 %s: %v\n", logDir, err)
-			return
+			return err
 		}
 
 		instance = &Logger{
@@ -246,9 +243,9 @@ func Init(serviceName, env string, logConfig config.LogConfig) *Logger {
 			"maxAge":   logConfig.MaxAge,
 			"compress": logConfig.Compress,
 		}).Info("Logger 初始化完成")
-	})
+	}
 
-	return instance
+	return nil
 }
 
 // GetLogger 取得 logger 實例
@@ -273,57 +270,57 @@ func (l *Logger) Close() error {
 // 便利函數：提供全域函數方便使用
 
 // Debug 記錄 debug 級別日誌
-func Debug(args ...interface{}) {
+func Debug(args ...any) {
 	GetLogger().Debug(args...)
 }
 
 // Debugf 記錄格式化的 debug 級別日誌
-func Debugf(format string, args ...interface{}) {
+func Debugf(format string, args ...any) {
 	GetLogger().Debugf(format, args...)
 }
 
 // Info 記錄 info 級別日誌
-func Info(args ...interface{}) {
+func Info(args ...any) {
 	GetLogger().Info(args...)
 }
 
 // Infof 記錄格式化的 info 級別日誌
-func Infof(format string, args ...interface{}) {
+func Infof(format string, args ...any) {
 	GetLogger().Infof(format, args...)
 }
 
 // Warn 記錄 warn 級別日誌
-func Warn(args ...interface{}) {
+func Warn(args ...any) {
 	GetLogger().Warn(args...)
 }
 
 // Warnf 記錄格式化的 warn 級別日誌
-func Warnf(format string, args ...interface{}) {
+func Warnf(format string, args ...any) {
 	GetLogger().Warnf(format, args...)
 }
 
 // Error 記錄 error 級別日誌
-func Error(args ...interface{}) {
+func Error(args ...any) {
 	GetLogger().Error(args...)
 }
 
 // Errorf 記錄格式化的 error 級別日誌
-func Errorf(format string, args ...interface{}) {
+func Errorf(format string, args ...any) {
 	GetLogger().Errorf(format, args...)
 }
 
 // Fatal 記錄 fatal 級別日誌並結束程式
-func Fatal(args ...interface{}) {
+func Fatal(args ...any) {
 	GetLogger().Fatal(args...)
 }
 
 // Fatalf 記錄格式化的 fatal 級別日誌並結束程式
-func Fatalf(format string, args ...interface{}) {
+func Fatalf(format string, args ...any) {
 	GetLogger().Fatalf(format, args...)
 }
 
 // WithField 建立帶有單一欄位的 logger entry
-func WithField(key string, value interface{}) *logrus.Entry {
+func WithField(key string, value any) *logrus.Entry {
 	return GetLogger().WithField(key, value)
 }
 
