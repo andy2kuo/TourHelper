@@ -998,6 +998,146 @@ docker run -d -p 6379:6379 --name redis \
   redis:latest redis-server --appendonly yes
 ```
 
+### Redis 狀態交換範例
+
+#### Lobby Server 更新會員狀態到 Redis
+
+```go
+// 在 Lobby Server 中（待實作）
+func (s *LobbyServer) UpdateMemberStatusToRedis(memberID string, status map[string]interface{}) error {
+    // TODO: 實作 Redis 狀態更新
+    // 1. 連接 Redis
+    // 2. 設定 key: member:{memberID}:status
+    // 3. 儲存狀態資料(JSON 格式)
+    // 4. 設定過期時間(例如: 30 分鐘)
+
+    // 範例實作:
+    // key := fmt.Sprintf("member:%s:status", memberID)
+    // data, _ := json.Marshal(status)
+    // return s.redisClient.Set(ctx, key, data, 30*time.Minute).Err()
+
+    return nil
+}
+
+// 會員登入時更新狀態
+func (s *LobbyServer) handleLogin(c *gin.Context) {
+    // ... 驗證邏輯 ...
+
+    // 登入成功後更新到 Redis
+    s.UpdateMemberStatusToRedis(memberID, map[string]interface{}{
+        "status": "online",
+        "login_time": time.Now().Unix(),
+        "platform": platform,
+    })
+}
+```
+
+#### Lobby Server 定時取得 Tour 狀態
+
+```go
+// 在 Lobby Server 中（待實作）
+func (s *LobbyServer) GetTourStatusFromRedis() (map[string]interface{}, error) {
+    // TODO: 實作從 Redis 讀取 Tour Server 狀態
+    // 1. 連接 Redis
+    // 2. 讀取 key: tour:server:status
+    // 3. 解析 JSON 資料
+
+    // 範例實作:
+    // val, err := s.redisClient.Get(ctx, "tour:server:status").Result()
+    // if err != nil {
+    //     return nil, err
+    // }
+    // var status map[string]interface{}
+    // json.Unmarshal([]byte(val), &status)
+    // return status, nil
+
+    return map[string]interface{}{
+        "status": "unknown",
+        "message": "Redis integration not implemented",
+    }, nil
+}
+
+// 定時監控 Tour Server 狀態
+func (s *LobbyServer) StartTourStatusMonitor() {
+    // TODO: 實作定時監控
+    // ticker := time.NewTicker(10 * time.Second)
+    // go func() {
+    //     for range ticker.C {
+    //         status, err := s.GetTourStatusFromRedis()
+    //         if err != nil {
+    //             logger.Errorf("取得 Tour 狀態失敗: %v", err)
+    //             continue
+    //         }
+    //         logger.Infof("Tour Server 狀態: %+v", status)
+    //     }
+    // }()
+}
+```
+
+#### Tour Server 更新狀態到 Redis
+
+```go
+// 在 Tour Server 中（待實作）
+func (s *TourServer) UpdateStatusToRedis() error {
+    // TODO: 實作 Redis 狀態更新
+    // 1. 收集伺服器狀態資訊
+    // 2. 設定 key: tour:server:status
+    // 3. 儲存狀態資料
+
+    // 範例實作:
+    // status := map[string]interface{}{
+    //     "status": "running",
+    //     "ws_clients": s.wsHub.GetClientCount(),
+    //     "update_time": time.Now().Unix(),
+    // }
+    // data, _ := json.Marshal(status)
+    // return s.redisClient.Set(ctx, "tour:server:status", data, 1*time.Minute).Err()
+
+    return nil
+}
+
+// 定時更新狀態
+func (s *TourServer) StartStatusReporter() {
+    // TODO: 每 5 秒更新一次狀態到 Redis
+}
+```
+
+### Redis 管理工具
+
+#### 使用 redis-cli 檢查狀態
+
+```bash
+# 連接到 Redis
+redis-cli
+
+# 查看所有 keys
+KEYS *
+
+# 查看 Tour Server 狀態
+GET tour:server:status
+
+# 查看會員狀態
+GET member:user123:status
+
+# 查看 key 過期時間
+TTL tour:server:status
+
+# 刪除特定 key
+DEL tour:server:status
+```
+
+#### 使用 Redis Commander (Web UI)
+
+```bash
+# 使用 Docker 啟動
+docker run -d -p 8083:8081 --name redis-commander \
+  --env REDIS_HOSTS=local:host.docker.internal:6379 \
+  rediscommander/redis-commander
+
+# 瀏覽器開啟
+# http://localhost:8083
+```
+
 ### 待實作功能
 
 - [ ] Redis 客戶端連線池
