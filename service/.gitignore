@@ -31,6 +31,11 @@ go.work.sum
 bin/
 tmp/
 
+# Log files and directories
+log/
+logs/
+*.log
+
 # Editor/IDE
 # .idea/
 # .vscode/
