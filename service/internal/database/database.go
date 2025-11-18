@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/andy2kuo/TourHelper/internal/config"
+	"github.com/andy2kuo/TourHelper/internal/logger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	gormLogger "gorm.io/gorm/logger" 
 	"gorm.io/plugin/dbresolver"
 )
 
@@ -82,11 +83,16 @@ func (m *DBManager) groupSlavesByMaster() map[string][]config.SlaveDBConfig {
 	for _, slaveCfg := range m.config.Slaves {
 		masterName := slaveCfg.MasterName
 		if masterName == "" {
-			// 如果未指定 MasterName，預設使用第一個 Master
-			if len(m.config.Masters) > 0 {
-				masterName = m.config.Masters[0].Name
-			}
+			// 如果未指定 MasterName，跳過並警告
+			logger.Warnf("Slave 資料庫未指定 MasterName，將被忽略: %+v", slaveCfg)
+			continue
 		}
+
+		if _, exists := masterSlaveMap[masterName]; !exists {
+			masterSlaveMap[masterName] = []config.SlaveDBConfig{}
+		}
+
+		logger.Infof("將 Slave 資料庫加入 Master [%s] 的讀取副本: %+v", masterName, slaveCfg)
 		masterSlaveMap[masterName] = append(masterSlaveMap[masterName], slaveCfg)
 	}
 
@@ -99,8 +105,14 @@ func (m *DBManager) createDatabaseWithResolver(masterCfg config.MasterDBConfig, 
 	masterDSN := m.buildDSN(masterCfg.Host, masterCfg.Port, masterCfg.User, masterCfg.Password,
 		masterCfg.DBName, masterCfg.Charset, masterCfg.ParseTime, masterCfg.Loc)
 
+	// 使用自訂的 GORM logger 將日誌輸出到 Logrus
 	db, err := gorm.Open(mysql.Open(masterDSN), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.NewGormLogger(
+			gormLogger.Info,
+			m.config.SlowQueryThreshold,
+			m.config.LogSlowQuery,
+			m.config.LogAllQueries,
+		),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("開啟 Master 連線失敗: %w", err)
@@ -146,7 +158,7 @@ func (m *DBManager) createDatabaseWithResolver(masterCfg config.MasterDBConfig, 
 		if err := db.Use(dbresolver.Register(resolverConfig).
 			SetMaxIdleConns(replicaMaxIdle).
 			SetMaxOpenConns(replicaMaxOpen).
-			SetConnMaxLifetime(time.Duration(replicaMaxLifetime) * time.Second)); err != nil {
+			SetConnMaxLifetime(replicaMaxLifetime)); err != nil {
 			return nil, fmt.Errorf("註冊 DBResolver 失敗: %w", err)
 		}
 	}
@@ -155,7 +167,7 @@ func (m *DBManager) createDatabaseWithResolver(masterCfg config.MasterDBConfig, 
 }
 
 // configureConnectionPool 設定連線池參數
-func (m *DBManager) configureConnectionPool(db *gorm.DB, maxIdle, maxOpen, maxLifetime *int) error {
+func (m *DBManager) configureConnectionPool(db *gorm.DB, maxIdle, maxOpen *int, maxLifetime *time.Duration) error {
 	sqlDB, err := db.DB()
 	if err != nil {
 		return err
@@ -179,7 +191,7 @@ func (m *DBManager) configureConnectionPool(db *gorm.DB, maxIdle, maxOpen, maxLi
 
 	sqlDB.SetMaxIdleConns(idle)
 	sqlDB.SetMaxOpenConns(open)
-	sqlDB.SetConnMaxLifetime(time.Duration(lifetime) * time.Second)
+	sqlDB.SetConnMaxLifetime(lifetime)
 
 	return nil
 }

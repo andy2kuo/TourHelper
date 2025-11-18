@@ -12,11 +12,11 @@ import (
 
 // Config 包含所有應用程式設定
 type Config struct {
-	Server   ServerConfig       `mapstructure:"server" json:"server" yaml:"server"`
-	Database DatabaseConfig     `mapstructure:"database" json:"database" yaml:"database"`
-	Line     LineBotConfig      `mapstructure:"line" json:"line" yaml:"line"`
-	Telegram TelegramBotConfig  `mapstructure:"telegram" json:"telegram" yaml:"telegram"`
-	Log      LogConfig          `mapstructure:"log" json:"log" yaml:"log"`
+	Server   ServerConfig      `mapstructure:"server" json:"server" yaml:"server"`
+	Database DatabaseConfig    `mapstructure:"database" json:"database" yaml:"database"`
+	Line     LineBotConfig     `mapstructure:"line" json:"line" yaml:"line"`
+	Telegram TelegramBotConfig `mapstructure:"telegram" json:"telegram" yaml:"telegram"`
+	Log      LogConfig         `mapstructure:"log" json:"log" yaml:"log"`
 }
 
 // ServerConfig HTTP 伺服器設定
@@ -43,14 +43,19 @@ type DatabaseConfig struct {
 	Slaves  []SlaveDBConfig  `mapstructure:"slaves" json:"slaves" yaml:"slaves"`    // Slave 資料庫列表（數量不定，可為空）
 
 	// 全域連線池設定（所有 Master/Slave 共用）
-	MaxIdleConns    int `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns"`
-	MaxOpenConns    int `mapstructure:"maxOpenConns" json:"maxOpenConns" yaml:"maxOpenConns"`
-	ConnMaxLifetime int `mapstructure:"connMaxLifetime" json:"connMaxLifetime" yaml:"connMaxLifetime"` // 秒
+	MaxIdleConns    int           `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns"`
+	MaxOpenConns    int           `mapstructure:"maxOpenConns" json:"maxOpenConns" yaml:"maxOpenConns"`
+	ConnMaxLifetime time.Duration `mapstructure:"connMaxLifetime" json:"connMaxLifetime" yaml:"connMaxLifetime"` // 連線最大存活時間
+
+	// SQL 日誌設定
+	LogSlowQuery       bool          `mapstructure:"logSlowQuery" json:"logSlowQuery" yaml:"logSlowQuery"`                   // 是否記錄慢查詢
+	SlowQueryThreshold time.Duration `mapstructure:"slowQueryThreshold" json:"slowQueryThreshold" yaml:"slowQueryThreshold"` // 慢查詢門檻
+	LogAllQueries      bool          `mapstructure:"logAllQueries" json:"logAllQueries" yaml:"logAllQueries"`                // 是否記錄所有查詢（開發用）
 }
 
 // MasterDBConfig Master 資料庫設定
 type MasterDBConfig struct {
-	Name      string `mapstructure:"name" json:"name" yaml:"name"`           // Master 識別名稱（例如：main, analytics）
+	Name      string `mapstructure:"name" json:"name" yaml:"name"` // Master 識別名稱（例如：main, analytics）
 	Host      string `mapstructure:"host" json:"host" yaml:"host"`
 	Port      string `mapstructure:"port" json:"port" yaml:"port"`
 	User      string `mapstructure:"user" json:"user" yaml:"user"`
@@ -64,14 +69,14 @@ type MasterDBConfig struct {
 	Schema string `mapstructure:"schema" json:"schema" yaml:"schema"` // 如果需要根據 Schema 區分 Master
 
 	// 可選：此 Master 專用的連線池設定（覆蓋全域設定）
-	MaxIdleConns    *int `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns"`          // nil 表示使用全域設定
-	MaxOpenConns    *int `mapstructure:"maxOpenConns" json:"maxOpenConns" yaml:"maxOpenConns"`
-	ConnMaxLifetime *int `mapstructure:"connMaxLifetime" json:"connMaxLifetime" yaml:"connMaxLifetime"`
+	MaxIdleConns    *int           `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns"` // nil 表示使用全域設定
+	MaxOpenConns    *int           `mapstructure:"maxOpenConns" json:"maxOpenConns" yaml:"maxOpenConns"`
+	ConnMaxLifetime *time.Duration `mapstructure:"connMaxLifetime" json:"connMaxLifetime" yaml:"connMaxLifetime"`
 }
 
 // SlaveDBConfig Slave 資料庫設定
 type SlaveDBConfig struct {
-	Name      string `mapstructure:"name" json:"name" yaml:"name"`           // Slave 識別名稱（例如：slave1, slave2）
+	Name      string `mapstructure:"name" json:"name" yaml:"name"` // Slave 識別名稱（例如：slave1, slave2）
 	Host      string `mapstructure:"host" json:"host" yaml:"host"`
 	Port      string `mapstructure:"port" json:"port" yaml:"port"`
 	User      string `mapstructure:"user" json:"user" yaml:"user"`
@@ -85,9 +90,9 @@ type SlaveDBConfig struct {
 	Weight int `mapstructure:"weight" json:"weight" yaml:"weight"`
 
 	// 可選：此 Slave 專用的連線池設定
-	MaxIdleConns    *int `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns"`
-	MaxOpenConns    *int `mapstructure:"maxOpenConns" json:"maxOpenConns" yaml:"maxOpenConns"`
-	ConnMaxLifetime *int `mapstructure:"connMaxLifetime" json:"connMaxLifetime" yaml:"connMaxLifetime"`
+	MaxIdleConns    *int           `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns"`
+	MaxOpenConns    *int           `mapstructure:"maxOpenConns" json:"maxOpenConns" yaml:"maxOpenConns"`
+	ConnMaxLifetime *time.Duration `mapstructure:"connMaxLifetime" json:"connMaxLifetime" yaml:"connMaxLifetime"`
 
 	// 可選：指定此 Slave 對應的 Master
 	MasterName string `mapstructure:"masterName" json:"masterName" yaml:"masterName"`
@@ -108,10 +113,10 @@ type TelegramBotConfig struct {
 
 // LogConfig 日誌設定
 type LogConfig struct {
-	Level      string `mapstructure:"level" json:"level" yaml:"level"`             // 日誌等級: debug, info, warn, error, fatal
-	MaxSize    int    `mapstructure:"maxSize" json:"maxSize" yaml:"maxSize"`       // MB
+	Level      string `mapstructure:"level" json:"level" yaml:"level"`                // 日誌等級: debug, info, warn, error, fatal
+	MaxSize    int    `mapstructure:"maxSize" json:"maxSize" yaml:"maxSize"`          // MB
 	MaxBackups int    `mapstructure:"maxBackups" json:"maxBackups" yaml:"maxBackups"` // 保留的舊日誌檔案數量
-	MaxAge     int    `mapstructure:"maxAge" json:"maxAge" yaml:"maxAge"`          // 保留的天數
+	MaxAge     int    `mapstructure:"maxAge" json:"maxAge" yaml:"maxAge"`             // 保留的天數
 	Compress   bool   `mapstructure:"compress" json:"compress" yaml:"compress"`
 }
 
@@ -178,13 +183,17 @@ func setDefaults() {
 	// Server 預設值
 	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.port", "8080")
-	viper.SetDefault("server.mode", "debug")
 
 	// Database 預設值（MySQL Master-Slave）
 	// 全域連線池設定
 	viper.SetDefault("database.maxidleconns", 10)
 	viper.SetDefault("database.maxopenconns", 100)
 	viper.SetDefault("database.connmaxlifetime", 3600) // 1 小時
+
+	// SQL 日誌設定
+	viper.SetDefault("database.logslowquery", true)                       // 預設啟用慢查詢記錄
+	viper.SetDefault("database.slowquerythreshold", 200*time.Millisecond) // 預設 200ms 為慢查詢
+	viper.SetDefault("database.logallqueries", false)                     // 預設不記錄所有查詢
 
 	// 預設 Master 設定（向後相容）
 	viper.SetDefault("database.masters", []map[string]any{
@@ -217,8 +226,8 @@ func setDefaults() {
 	viper.SetDefault("maps.provider", "google")
 
 	// Log 預設值
-	viper.SetDefault("log.maxsize", 100)   // 100 MB
-	viper.SetDefault("log.maxbackups", 3)  // 保留 3 個備份
-	viper.SetDefault("log.maxage", 28)     // 保留 28 天
+	viper.SetDefault("log.maxSize", 100)   // 100 MB
+	viper.SetDefault("log.maxBackups", 3)  // 保留 3 個備份
+	viper.SetDefault("log.maxAge", 28)     // 保留 28 天
 	viper.SetDefault("log.compress", true) // 壓縮舊檔案
 }

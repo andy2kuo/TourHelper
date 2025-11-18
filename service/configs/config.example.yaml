@@ -1,13 +1,35 @@
 server:
   host: 0.0.0.0
   port: 8080
-  mode: debug # debug 或 release
+  # certFile: "" # SSL 憑證檔案路徑（選用）
+  # keyFile: ""  # SSL 私鑰檔案路徑（選用）
+  readTimeout: 30s   # HTTP 讀取超時時間（支援：ns, us, ms, s, m, h）
+  writeTimeout: 30s  # HTTP 寫入超時時間
+  cors:
+    enabled: false
+    allowOrigins:
+      - "*"
+    allowMethods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    allowHeaders:
+      - Origin
+      - Content-Type
+      - Authorization
 
 database:
   # 全域連線池設定（適用於所有 Master 和 Slave）
   maxidleconns: 10          # 最大閒置連線數
   maxopenconns: 100         # 最大開啟連線數
-  connmaxlifetime: 3600     # 連線最大生命週期（秒）
+  connmaxlifetime: 1h     # 連線最大生命週期
+
+  # SQL 日誌設定
+  logslowquery: true        # 是否記錄慢查詢
+  slowquerythreshold: 200ms # 慢查詢門檻（支援：ns, us, ms, s, m, h），超過此時間的查詢會被記錄
+  logallqueries: false      # 是否記錄所有查詢（開發模式用，會產生大量日誌）
 
   # Master 資料庫列表（至少需要一個）
   masters:
@@ -75,7 +97,7 @@ telegram:
 
 log:
   level: info # debug, info, warn, error
-  max_size: 100 # MB
-  max_backups: 7
-  max_age: 28 # 天
+  maxSize: 100 # MB
+  maxBackups: 7
+  maxAge: 28 # 天
   compress: true # 是否壓縮
