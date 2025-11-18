@@ -23,7 +23,7 @@ service/
 │   │   └── main.go         # Tour 伺服器啟動檔案，初始化設定、建立 tour server、優雅關閉
 │   ├── lobby/              # Lobby Server (會員登入驗證服務)
 │   │   └── main.go         # Lobby 伺服器啟動檔案，初始化設定、建立 lobby server、優雅關閉
-│   └── backend_admin/      # Backend Admin Server (後台管理服務)
+│   └── backend/      # Backend Server (後台管理服務)
 │       └── main.go         # Backend Admin 伺服器啟動檔案，初始化設定、建立 backend admin server、優雅關閉
 ├── internal/               # 私有應用程式碼
 │   ├── config/             # 設定管理
@@ -39,7 +39,7 @@ service/
 │   │   ├── lobby/          # Lobby Server 實作（HTTP Only）
 │   │   │   ├── lobby-server.go      # Lobby 伺服器實作（Gin）
 │   │   │   └── lobby-handler.go     # Lobby 請求處理器（登入、會員管理）
-│   │   └── backend_admin/  # Backend Admin Server 實作（HTTP Only）
+│   │   └── backend/  # Backend Server 實作（HTTP Only）
 │   │       ├── backend-admin-server.go   # Backend Admin 伺服器實作（Gin）
 │   │       └── backend-admin-handler.go  # Backend Admin 請求處理器（管理功能）
 │   ├── database/           # 資料庫管理
@@ -86,7 +86,7 @@ service/
                            ↑  ↓
          ┌─────────────────┴──┴───────────────┐
          ↓                  ↓                  ↓
-[Tour Server]      [Lobby Server]    [Backend Admin Server]
+[Tour Server]      [Lobby Server]    [Backend Server]
 (HTTP+WebSocket)      (HTTP Only)         (HTTP Only)
   8080                  8081                 8082
 
@@ -112,7 +112,7 @@ service/
     ↓
 [Handlers] ← server/tour/tour-handler.go
            ← server/lobby/lobby-handler.go
-           ← server/backend_admin/backend-admin-handler.go
+           ← server/backend/backend-admin-handler.go
     ↓ 處理請求/回應、參數驗證
 [Services] ← services/
     ↓ 業務邏輯處理
@@ -129,7 +129,7 @@ service/
    - 位置：
      - `internal/server/tour/tour-handler.go` - Tour Server 請求處理
      - `internal/server/lobby/lobby-handler.go` - Lobby Server 請求處理（登入、會員管理）
-     - `internal/server/backend_admin/backend-admin-handler.go` - Backend Admin 請求處理
+     - `internal/server/backend/backend-admin-handler.go` - Backend Admin 請求處理
    - 職責：處理各種請求和回應、參數解析和驗證、呼叫 Service 層
    - 範例：登入驗證、旅遊推薦、WebSocket 升級、Bot webhook
 
@@ -178,14 +178,14 @@ Lobby Server 進入點，負責：
 - 啟動 Lobby Server（HTTP Only）
 - 處理優雅關閉（Graceful Shutdown）
 
-### cmd/backend_admin/main.go
+### cmd/backend/main.go
 
-Backend Admin Server 進入點，負責：
+Backend Server 進入點，負責：
 
 - 載入設定（使用 config.Load）
 - 初始化 Logger
-- 建立 Backend Admin Server 實例
-- 啟動 Backend Admin Server（HTTP Only）
+- 建立 Backend Server 實例
+- 啟動 Backend Server（HTTP Only）
 - 處理優雅關閉（Graceful Shutdown）
 
 ### internal/server/
@@ -232,7 +232,7 @@ Backend Admin Server 進入點，負責：
     - handleGetMemberInfo：取得會員資訊
     - handleUpdateMemberInfo：更新會員資訊
 
-- **backend_admin/**：Backend Admin Server 實作（HTTP Only）
+- **backend/**：Backend Server 實作（HTTP Only）
   - **backend-admin-server.go**：使用 Gin 框架實作 Backend Admin HTTP 伺服器
     - 註冊管理相關路由
     - Redis 狀態讀取（待實作）
@@ -254,7 +254,7 @@ Backend Admin Server 進入點，負責：
 3. 清晰的職責劃分：
    - Tour Server：旅遊推薦和即時通訊
    - Lobby Server：會員驗證和管理
-   - Backend Admin Server：後台管理功能
+   - Backend Server：後台管理功能
 4. 輕鬆新增其他類型的伺服器（例如：gRPC Server 等）
 
 ### internal/config/config.go
@@ -374,7 +374,7 @@ runTour.bat
 # 啟動 Lobby Server (預設 8081 埠)
 runLobby.bat
 
-# 啟動 Backend Admin Server (預設 8082 埠)
+# 啟動 Backend Server (預設 8082 埠)
 runBackend.bat
 ```
 
@@ -389,8 +389,8 @@ go run -ldflags "-X main.SERVICE_NAME=tour_server -X main.SERVICE_VERSION=0.0.1-
 # 執行 Lobby Server
 go run -ldflags "-X main.SERVICE_NAME=lobby_server -X main.SERVICE_VERSION=0.0.1-dev -X main.SERVICE_ENV=dev" cmd/lobby/main.go
 
-# 執行 Backend Admin Server
-go run -ldflags "-X main.SERVICE_NAME=backend_admin_server -X main.SERVICE_VERSION=0.0.1-dev -X main.SERVICE_ENV=dev" cmd/backend_admin/main.go
+# 執行 Backend Server
+go run -ldflags "-X main.SERVICE_NAME=backend_server -X main.SERVICE_VERSION=0.0.1-dev -X main.SERVICE_ENV=dev" cmd/backend/main.go
 ```
 
 ### 建置
@@ -399,12 +399,12 @@ go run -ldflags "-X main.SERVICE_NAME=backend_admin_server -X main.SERVICE_VERSI
 # 基本建置
 go build -o tour cmd/tour/main.go
 go build -o lobby cmd/lobby/main.go
-go build -o backend_admin cmd/backend_admin/main.go
+go build -o backend cmd/backend/main.go
 
 # 建置到特定目錄
 go build -o bin/tour cmd/tour/main.go
 go build -o bin/lobby cmd/lobby/main.go
-go build -o bin/backend_admin cmd/backend_admin/main.go
+go build -o bin/backend cmd/backend/main.go
 
 # 建置並注入版本資訊（使用 -ldflags）
 # Tour Server
@@ -421,12 +421,12 @@ go build -ldflags "\
   -X main.SERVICE_VERSION=1.0.0" \
   -o lobby cmd/lobby/main.go
 
-# Backend Admin Server
+# Backend Server
 go build -ldflags "\
-  -X main.SERVICE_NAME=backend_admin_server \
+  -X main.SERVICE_NAME=backend_server \
   -X main.SERVICE_ENV=production \
   -X main.SERVICE_VERSION=1.0.0" \
-  -o backend_admin cmd/backend_admin/main.go
+  -o backend cmd/backend/main.go
 
 # 開發環境建置
 go build -ldflags "\
@@ -442,15 +442,15 @@ go build -ldflags "\
   -o lobby cmd/lobby/main.go
 
 go build -ldflags "\
-  -X main.SERVICE_NAME=backend_admin_server \
+  -X main.SERVICE_NAME=backend_server \
   -X main.SERVICE_ENV=dev \
   -X main.SERVICE_VERSION=0.0.1-dev" \
-  -o backend_admin cmd/backend_admin/main.go
+  -o backend cmd/backend/main.go
 
 # 執行建置的檔案
 ./tour           # 啟動 Tour Server
 ./lobby          # 啟動 Lobby Server
-./backend_admin  # 啟動 Backend Admin Server
+./backend  # 啟動 Backend Server
 ```
 
 **說明**：
@@ -972,7 +972,7 @@ go tool cover -html=coverage.out
 
 1. **會員狀態管理**：Lobby Server 將會員登入狀態寫入 Redis
 2. **伺服器狀態同步**：Tour Server 定時將伺服器狀態寫入 Redis
-3. **狀態監控**：Lobby Server 和 Backend Admin Server 從 Redis 讀取狀態
+3. **狀態監控**：Lobby Server 和 Backend Server 從 Redis 讀取狀態
 4. **Session 管理**：JWT Token 驗證和 Session 資料儲存
 5. **快取**：景點資料、推薦結果快取
 

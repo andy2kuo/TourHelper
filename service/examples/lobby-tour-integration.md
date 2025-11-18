@@ -37,7 +37,7 @@
   - Bot 整合(Line/Telegram)
   - 將伺服器狀態和旅遊資訊更新到 Redis
 
-### Backend Admin Server
+### Backend Server
 - **主要功能**: 後台管理功能
 - **端口**: 預設 8082
 - **職責**:
@@ -62,7 +62,7 @@ runTour.bat
 cd service
 runLobby.bat
 
-# 啟動 Backend Admin Server (預設 8082 埠)
+# 啟動 Backend Server (預設 8082 埠)
 cd service
 runBackend.bat
 ```
@@ -83,9 +83,9 @@ go run -ldflags "-X main.SERVICE_NAME=tour_server -X main.SERVICE_VERSION=0.0.1-
 cd service
 go run -ldflags "-X main.SERVICE_NAME=lobby_server -X main.SERVICE_VERSION=0.0.1-dev -X main.SERVICE_ENV=dev" cmd/lobby/main.go
 
-# 終端機 3: 啟動 Backend Admin Server
+# 終端機 3: 啟動 Backend Server
 cd service
-go run -ldflags "-X main.SERVICE_NAME=backend_admin_server -X main.SERVICE_VERSION=0.0.1-dev -X main.SERVICE_ENV=dev" cmd/backend_admin/main.go
+go run -ldflags "-X main.SERVICE_NAME=backend_server -X main.SERVICE_VERSION=0.0.1-dev -X main.SERVICE_ENV=dev" cmd/backend/main.go
 ```
 
 ### Redis 啟動
@@ -339,7 +339,7 @@ func (s *TourServer) StartStatusReporter() {
 - [ ] 使用者偏好設定 API
 - [ ] WebSocket 訊息類型擴充
 
-### Backend Admin Server
+### Backend Server
 
 - [ ] **Redis 客戶端整合**
   - [ ] 建立 Redis 連線池
