@@ -42,12 +42,12 @@ database:
       charset: utf8mb4
       parsetime: true
       loc: Local
-      # schema: ""          # 可選：針對特定 Schema 的設定
+      # database: ""          # 可選：針對特定 Database 的設定
       # maxidleconns: 10    # 可選：覆蓋全域設定
       # maxopenconns: 100   # 可選：覆蓋全域設定
       # connmaxlifetime: 3600 # 可選：覆蓋全域設定
 
-    # 範例：根據 Schema 區分的第二個 Master
+    # 範例：根據 Database 區分的第二個 Master
     # - name: analytics
     #   host: analytics-db.example.com
     #   port: "3306"
@@ -57,7 +57,7 @@ database:
     #   charset: utf8mb4
     #   parsetime: true
     #   loc: Local
-    #   schema: analytics   # 指定此 Master 處理的 Schema
+    #   database: analytics # 指定此 Master 處理的 Database(額外的資料庫識別名稱)
 
   # Slave 資料庫列表（可選，數量不限）
   slaves: []

@@ -9,14 +9,14 @@ import (
 	"github.com/andy2kuo/TourHelper/internal/logger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	gormLogger "gorm.io/gorm/logger" 
+	gormLogger "gorm.io/gorm/logger"
 	"gorm.io/plugin/dbresolver"
 )
 
 // DBManager 資料庫管理器（Master-Slave 架構）
 // 使用 GORM DBResolver 插件實現讀寫分離
 type DBManager struct {
-	databases map[string]*gorm.DB // 多個資料庫實例，key 為 Master 名稱或 Schema
+	databases map[string]*gorm.DB // 多個資料庫實例，key 為 Master 名稱或 Database
 	mu        sync.RWMutex        // 讀寫鎖
 
 	config config.DatabaseConfig
@@ -67,9 +67,9 @@ func (m *DBManager) initialize() error {
 		// 使用 Master 名稱作為 key
 		m.databases[masterCfg.Name] = db
 
-		// 如果有指定 Schema，也用 Schema 作為 key
-		if masterCfg.Schema != "" {
-			m.databases[masterCfg.Schema] = db
+		// 如果有指定 Database，也用 Database 作為 key
+		if masterCfg.Database != "" {
+			m.databases[masterCfg.Database] = db
 		}
 	}
 
@@ -150,7 +150,7 @@ func (m *DBManager) createDatabaseWithResolver(masterCfg config.MasterDBConfig, 
 		// 建立 DBResolver 設定
 		resolverConfig := dbresolver.Config{
 			Sources:  []gorm.Dialector{mysql.Open(masterDSN)}, // Master 作為 Source
-			Replicas: replicas,                                 // Slaves 作為 Replicas
+			Replicas: replicas,                                // Slaves 作為 Replicas
 			Policy:   dbresolver.RandomPolicy{},               // 使用隨機策略
 		}
 
@@ -203,7 +203,7 @@ func (m *DBManager) buildDSN(host, port, user, password, dbName, charset string,
 }
 
 // GetDB 取得資料庫連線（自動讀寫分離）
-// 參數可以是 Master 名稱或 Schema 名稱
+// 參數可以是 Master 名稱或 Database 名稱
 func (m *DBManager) GetDB(name ...string) *gorm.DB {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -243,17 +243,17 @@ func (m *DBManager) GetSlave(name ...string) *gorm.DB {
 	return m.GetDB(name...).Clauses(dbresolver.Read)
 }
 
-// GetBySchema 根據 Schema 取得對應的資料庫連線
-func (m *DBManager) GetBySchema(schema string) *gorm.DB {
+// GetByDatabase 根據 Database 名稱 取得對應的資料庫連線
+func (m *DBManager) GetByDatabase(database string) *gorm.DB {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// 尋找符合 Schema 的資料庫
-	if db, ok := m.databases[schema]; ok {
+	// 尋找符合 Database 的資料庫
+	if db, ok := m.databases[database]; ok {
 		return db
 	}
 
-	// 找不到符合的 Schema，返回預設資料庫
+	// 找不到符合的 Database，返回預設資料庫
 	return m.GetDB()
 }
 

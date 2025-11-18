@@ -39,7 +39,7 @@ type CORSConfig struct {
 
 // DatabaseConfig 資料庫設定（MySQL Master-Slave 架構）
 type DatabaseConfig struct {
-	Masters []MasterDBConfig `mapstructure:"masters" json:"masters" yaml:"masters"` // Master 資料庫列表（可根據 Schema 區分）
+	Masters []MasterDBConfig `mapstructure:"masters" json:"masters" yaml:"masters"` // Master 資料庫列表（可根據 Database 區分）
 	Slaves  []SlaveDBConfig  `mapstructure:"slaves" json:"slaves" yaml:"slaves"`    // Slave 資料庫列表（數量不定，可為空）
 
 	// 全域連線池設定（所有 Master/Slave 共用）
@@ -65,8 +65,8 @@ type MasterDBConfig struct {
 	ParseTime bool   `mapstructure:"parsetime" json:"parsetime" yaml:"parsetime"`
 	Loc       string `mapstructure:"loc" json:"loc" yaml:"loc"`
 
-	// 可選：針對特定 Schema 的設定
-	Schema string `mapstructure:"schema" json:"schema" yaml:"schema"` // 如果需要根據 Schema 區分 Master
+	// 可選：針對特定 Database 的設定
+	Database string `mapstructure:"database" json:"database" yaml:"database"` // 如果需要根據 Database 區分 Master
 
 	// 可選：此 Master 專用的連線池設定（覆蓋全域設定）
 	MaxIdleConns    *int           `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns"` // nil 表示使用全域設定
