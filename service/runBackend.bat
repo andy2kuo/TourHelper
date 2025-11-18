@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
-REM TourHelper Frontend Service startup script
-REM This script starts the frontend service with customizable service name, version, and environment
+REM TourHelper Backend Admin Service startup script
+REM This script starts the backend admin service with customizable service name, version, and environment
 
 REM Check if running from service directory
 if not exist "go.mod" (
@@ -24,13 +24,13 @@ if errorlevel 1 (
 )
 
 echo ====================================
-echo TourHelper Frontend Service
+echo TourHelper Backend Admin Service
 echo ====================================
 echo.
 
-REM Prompt user for service name (default: tour_helper)
-set /p SERVICE_NAME="Enter Service Name [tour_helper]: "
-if "%SERVICE_NAME%"=="" set SERVICE_NAME=tour_helper
+REM Prompt user for service name (default: backend_admin_server)
+set /p SERVICE_NAME="Enter Service Name [backend_admin_server]: "
+if "%SERVICE_NAME%"=="" set SERVICE_NAME=backend_admin_server
 
 REM Prompt user for service version (default: 0.0.1-dev)
 set /p SERVICE_VERSION="Enter Service Version [0.0.1-dev]: "
@@ -54,7 +54,7 @@ cd /d "%~dp0"
 
 REM Run Go program with ldflags to set variables
 set LDFLAGS=-X main.SERVICE_NAME=%SERVICE_NAME% -X main.SERVICE_VERSION=%SERVICE_VERSION% -X main.SERVICE_ENV=%SERVICE_ENV%
-go run -ldflags "%LDFLAGS%" cmd\frontend\main.go
+go run -ldflags "%LDFLAGS%" cmd\backend_admin\main.go
 
 REM Pause if program exits with error
 if errorlevel 1 (

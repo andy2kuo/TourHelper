@@ -11,31 +11,13 @@ import (
 )
 
 // LobbyServer 大廳伺服器,使用 Gin 框架
-// 主要功能:處理會員登入驗證,與 Tour Server 進行雙向溝通
+// 主要功能:處理會員登入驗證,定時從 Redis 取得 Tour Server 狀態
 type LobbyServer struct {
 	router     *gin.Engine
 	opt        *server.Options
 	httpServer *http.Server
-	tourServer TourServerInterface // Tour Server 介面,用於雙向溝通
-}
-
-// TourServerInterface Tour Server 介面定義
-type TourServerInterface interface {
-	GetHub() HubInterface
-}
-
-// HubInterface WebSocket Hub 介面定義
-type HubInterface interface {
-	BroadcastToAll(message []byte)
-	SendToClient(clientID string, message []byte) error
-	GetClientCount() int
-	GetClientIDs() []string
-}
-
-// SetTourServer 設定 Tour Server 實例(用於雙向溝通)
-func (s *LobbyServer) SetTourServer(tourServer TourServerInterface) {
-	s.tourServer = tourServer
-	logger.Info("Lobby Server 已連接至 Tour Server")
+	// TODO: 新增 Redis 客戶端
+	// redisClient *redis.Client
 }
 
 // Init 初始化伺服器
@@ -150,31 +132,37 @@ func (s *LobbyServer) Name() string {
 	return "Lobby Server"
 }
 
-// NotifyTourServer 通知 Tour Server (透過 WebSocket 廣播訊息)
-func (s *LobbyServer) NotifyTourServer(message []byte) error {
-	if s.tourServer == nil {
-		return fmt.Errorf("Tour Server 未設定")
-	}
-
-	hub := s.tourServer.GetHub()
-	if hub == nil {
-		return fmt.Errorf("WebSocket Hub 未初始化")
-	}
-
-	hub.BroadcastToAll(message)
+// UpdateMemberStatusToRedis 更新會員狀態到 Redis
+func (s *LobbyServer) UpdateMemberStatusToRedis(memberID string, status map[string]interface{}) error {
+	// TODO: 實作 Redis 狀態更新
+	// 1. 序列化狀態資料為 JSON
+	// 2. 儲存到 Redis (key: member:{memberID}:status)
+	// 3. 設定過期時間
+	logger.WithFields(map[string]interface{}{
+		"member_id": memberID,
+		"status":    status,
+	}).Info("TODO: 更新會員狀態到 Redis")
 	return nil
 }
 
-// SendToMember 發送訊息給特定會員 (透過 Tour Server 的 WebSocket)
-func (s *LobbyServer) SendToMember(memberID string, message []byte) error {
-	if s.tourServer == nil {
-		return fmt.Errorf("Tour Server 未設定")
-	}
+// GetTourStatusFromRedis 從 Redis 取得 Tour Server 狀態
+func (s *LobbyServer) GetTourStatusFromRedis() (map[string]interface{}, error) {
+	// TODO: 實作從 Redis 讀取 Tour Server 狀態
+	// 1. 從 Redis 讀取 key: tour:server:status
+	// 2. 反序列化 JSON 為 map
+	// 3. 回傳狀態資訊
+	logger.Info("TODO: 從 Redis 取得 Tour Server 狀態")
+	return map[string]interface{}{
+		"status":  "unknown",
+		"message": "Redis integration not implemented",
+	}, nil
+}
 
-	hub := s.tourServer.GetHub()
-	if hub == nil {
-		return fmt.Errorf("WebSocket Hub 未初始化")
-	}
-
-	return hub.SendToClient(memberID, message)
+// StartTourStatusMonitor 啟動定時監控 Tour Server 狀態的協程
+func (s *LobbyServer) StartTourStatusMonitor() {
+	// TODO: 實作定時從 Redis 取得 Tour Server 狀態
+	// 1. 建立 ticker,每 N 秒執行一次
+	// 2. 呼叫 GetTourStatusFromRedis 取得狀態
+	// 3. 更新本地快取或觸發相應處理
+	logger.Info("TODO: 啟動 Tour Server 狀態監控協程")
 }

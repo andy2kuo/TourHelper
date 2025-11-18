@@ -19,24 +19,29 @@ TourHelper 後端服務，使用 Go 語言和 Gin 框架建構，提供旅遊推
 ```text
 service/
 ├── cmd/                    # 主程式進入點
-│   ├── backend/            # 後端 API 伺服器
-│   │   └── main.go         # 後端伺服器啟動檔案，初始化設定、建立 backend server、優雅關閉
-│   └── frontend/           # 前端伺服器
-│       └── main.go         # 前端伺服器啟動檔案，初始化設定、建立 frontend server、優雅關閉
+│   ├── tour/               # Tour Server (旅遊推薦服務)
+│   │   └── main.go         # Tour 伺服器啟動檔案，初始化設定、建立 tour server、優雅關閉
+│   ├── lobby/              # Lobby Server (會員登入驗證服務)
+│   │   └── main.go         # Lobby 伺服器啟動檔案，初始化設定、建立 lobby server、優雅關閉
+│   └── backend_admin/      # Backend Admin Server (後台管理服務)
+│       └── main.go         # Backend Admin 伺服器啟動檔案，初始化設定、建立 backend admin server、優雅關閉
 ├── internal/               # 私有應用程式碼
 │   ├── config/             # 設定管理
 │   │   └── config.go       # 使用 Viper 管理設定，支援 YAML 和環境變數
 │   ├── server/             # 伺服器實作
 │   │   ├── server.go       # Server 介面定義
-│   │   ├── backend/        # 後端 API 伺服器實作
-│   │   │   ├── backend-server.go   # Backend 伺服器實作（Gin）
-│   │   │   └── backend-handler.go  # Backend API 請求處理器
-│   │   └── frontend/       # 前端伺服器實作
-│   │       ├── frontend-server.go   # Frontend 伺服器實作（Gin）
-│   │       ├── frontend-handler.go  # Frontend 請求處理器
-│   │       ├── websocket-hub.go     # WebSocket 連線管理（Hub）
-│   │       ├── websocket-client.go  # WebSocket 客戶端連線
-│   │       └── websocket-handler.go # WebSocket 請求處理器
+│   │   ├── tour/           # Tour Server 實作（HTTP + WebSocket）
+│   │   │   ├── tour-server.go       # Tour 伺服器實作（Gin）
+│   │   │   ├── tour-handler.go      # Tour 請求處理器
+│   │   │   ├── websocket-hub.go     # WebSocket 連線管理（Hub）
+│   │   │   ├── websocket-client.go  # WebSocket 客戶端連線
+│   │   │   └── websocket-handler.go # WebSocket 請求處理器
+│   │   ├── lobby/          # Lobby Server 實作（HTTP Only）
+│   │   │   ├── lobby-server.go      # Lobby 伺服器實作（Gin）
+│   │   │   └── lobby-handler.go     # Lobby 請求處理器（登入、會員管理）
+│   │   └── backend_admin/  # Backend Admin Server 實作（HTTP Only）
+│   │       ├── backend-admin-server.go   # Backend Admin 伺服器實作（Gin）
+│   │       └── backend-admin-handler.go  # Backend Admin 請求處理器（管理功能）
 │   ├── database/           # 資料庫管理
 │   │   ├── database.go     # 資料庫連線管理、初始化
 │   │   └── example_usage.go # 使用範例
@@ -72,14 +77,42 @@ service/
 └── README.md               # 本檔案
 ```
 
+## 三伺服器架構
+
+本專案採用三個獨立伺服器架構，使用 Redis 進行狀態同步：
+
+```text
+                    [Redis 狀態中心]
+                           ↑  ↓
+         ┌─────────────────┴──┴───────────────┐
+         ↓                  ↓                  ↓
+[Tour Server]      [Lobby Server]    [Backend Admin Server]
+(HTTP+WebSocket)      (HTTP Only)         (HTTP Only)
+  8080                  8081                 8082
+
+  - 旅遊推薦          - 會員登入驗證       - 後台管理
+  - 景點查詢          - LINE 登入          - 會員管理
+  - 即時通訊          - Token 驗證          - 系統設定
+  - Bot 整合          - 會員資訊管理        - 日誌查詢
+```
+
+### 通訊方式
+
+- **Tour ↔ Lobby**: 透過 Redis 非同步通訊（不直接呼叫）
+  - Tour 將狀態寫入 Redis
+  - Lobby 定時從 Redis 讀取 Tour 狀態
+- **Backend Admin ↔ Redis**: 讀取各伺服器狀態，管理系統設定
+
 ## 分層架構
 
 本專案採用經典的分層架構設計，確保關注點分離和程式碼可維護性：
 
 ```text
-外部請求（HTTP / Bot / gRPC 等）
+外部請求（HTTP / WebSocket / Bot 等）
     ↓
-[Handlers] ← server/backend/backend-handler.go 或 server/frontend/frontend-handler.go
+[Handlers] ← server/tour/tour-handler.go
+           ← server/lobby/lobby-handler.go
+           ← server/backend_admin/backend-admin-handler.go
     ↓ 處理請求/回應、參數驗證
 [Services] ← services/
     ↓ 業務邏輯處理
@@ -87,15 +120,18 @@ service/
     ↓ 資料庫 CRUD 操作
 [Models] ← models/
     ↓ 資料結構定義
-資料庫
+資料庫 / Redis
 ```
 
 ### 各層職責
 
 1. **Handlers（處理器層）**
-   - 位置：`internal/server/backend/backend-handler.go` 和 `internal/server/frontend/frontend-handler.go`
+   - 位置：
+     - `internal/server/tour/tour-handler.go` - Tour Server 請求處理
+     - `internal/server/lobby/lobby-handler.go` - Lobby Server 請求處理（登入、會員管理）
+     - `internal/server/backend_admin/backend-admin-handler.go` - Backend Admin 請求處理
    - 職責：處理各種請求和回應、參數解析和驗證、呼叫 Service 層
-   - 範例：Backend 的 API handlers、Frontend 的 HealthCheckHandler 和 Bot webhook handlers
+   - 範例：登入驗證、旅遊推薦、WebSocket 升級、Bot webhook
 
 2. **Services（業務邏輯層）**
    - 位置：`internal/services/`
@@ -122,24 +158,34 @@ service/
 
 ## 核心模組說明
 
-### cmd/backend/main.go
+### cmd/tour/main.go
 
-後端 API 伺服器進入點，負責：
+Tour Server 進入點，負責：
 
 - 載入設定（使用 config.Load）
 - 初始化 Logger
-- 建立 Backend Server 實例
-- 啟動後端 API 伺服器
+- 建立 Tour Server 實例
+- 啟動 Tour Server（HTTP + WebSocket）
 - 處理優雅關閉（Graceful Shutdown）
 
-### cmd/frontend/main.go
+### cmd/lobby/main.go
 
-前端伺服器進入點，負責：
+Lobby Server 進入點，負責：
 
 - 載入設定（使用 config.Load）
 - 初始化 Logger
-- 建立 Frontend Server 實例
-- 啟動前端伺服器（包含靜態檔案服務和 Bot webhook）
+- 建立 Lobby Server 實例
+- 啟動 Lobby Server（HTTP Only）
+- 處理優雅關閉（Graceful Shutdown）
+
+### cmd/backend_admin/main.go
+
+Backend Admin Server 進入點，負責：
+
+- 載入設定（使用 config.Load）
+- 初始化 Logger
+- 建立 Backend Admin Server 實例
+- 啟動 Backend Admin Server（HTTP Only）
 - 處理優雅關閉（Graceful Shutdown）
 
 ### internal/server/
@@ -147,25 +193,18 @@ service/
 伺服器實作模組，支援多種伺服器類型：
 
 - **server.go**：定義 Server 介面，規範所有伺服器類型的行為
+  - `Init(opts *Options)`：初始化伺服器
   - `Start()`：啟動伺服器
   - `Stop()`：停止伺服器
   - `Name()`：返回伺服器名稱
 
-- **backend/**：後端 API 伺服器實作
-  - **backend-server.go**：使用 Gin 框架實作 Backend HTTP 伺服器
-    - 註冊後端 API 路由
-    - 支援優雅關閉
-  - **backend-handler.go**：後端 API 請求處理器
-    - 未來可新增各種 API 端點處理器
-
-- **frontend/**：前端伺服器實作
-  - **frontend-server.go**：使用 Gin 框架實作 Frontend HTTP/WebSocket 伺服器
-    - 註冊前端路由
-    - 支援靜態檔案服務
-    - 整合 WebSocket 即時通訊
+- **tour/**：Tour Server 實作（HTTP + WebSocket）
+  - **tour-server.go**：使用 Gin 框架實作 Tour HTTP/WebSocket 伺服器
+    - 註冊旅遊相關 API 路由
+    - 整合 WebSocket Hub
     - 整合 Line 和 Telegram Bot webhook
     - 支援優雅關閉
-  - **frontend-handler.go**：前端請求處理器
+  - **tour-handler.go**：Tour 請求處理器
     - HealthCheckHandler：處理健康檢查請求
   - **websocket-hub.go**：WebSocket 連線管理中心
     - 管理所有 WebSocket 客戶端連線
@@ -180,12 +219,43 @@ service/
     - 處理 WebSocket 升級請求
     - 提供連線資訊 API
 
-**設計理念**：透過 Server 介面和前後端分離架構，可以：
+- **lobby/**：Lobby Server 實作（HTTP Only）
+  - **lobby-server.go**：使用 Gin 框架實作 Lobby HTTP 伺服器
+    - 註冊會員驗證相關路由
+    - Redis 狀態管理（待實作）
+    - 支援優雅關閉
+  - **lobby-handler.go**：Lobby 請求處理器
+    - handleLogin：一般登入驗證
+    - handleLineLogin：LINE 第三方登入（待實作）
+    - handleLogout：登出
+    - handleVerifyToken：Token 驗證
+    - handleGetMemberInfo：取得會員資訊
+    - handleUpdateMemberInfo：更新會員資訊
 
-1. 獨立部署和擴展前後端伺服器
-2. 輕鬆新增其他類型的伺服器（例如：gRPC Server 等）
-3. 清晰的職責劃分：Backend 專注於 API 服務，Frontend 專注於頁面、WebSocket 和 Bot 整合
-4. 同時支援 HTTP 和 WebSocket 協定，提供即時通訊功能
+- **backend_admin/**：Backend Admin Server 實作（HTTP Only）
+  - **backend-admin-server.go**：使用 Gin 框架實作 Backend Admin HTTP 伺服器
+    - 註冊管理相關路由
+    - Redis 狀態讀取（待實作）
+    - 支援優雅關閉
+  - **backend-admin-handler.go**：Backend Admin 請求處理器
+    - handleAdminLogin：管理員登入
+    - handleGetMembers：取得會員列表
+    - handleGetMemberDetail：取得會員詳情
+    - handleUpdateMemberStatus：更新會員狀態
+    - handleDeleteMember：刪除會員
+    - handleGetTourStatus：取得 Tour Server 狀態
+    - handleGetDestinations：取得景點列表
+    - 其他管理功能處理器
+
+**設計理念**：透過 Server 介面和三伺服器架構，可以：
+
+1. 獨立部署和擴展各個伺服器
+2. 使用 Redis 進行非同步狀態同步，降低耦合度
+3. 清晰的職責劃分：
+   - Tour Server：旅遊推薦和即時通訊
+   - Lobby Server：會員驗證和管理
+   - Backend Admin Server：後台管理功能
+4. 輕鬆新增其他類型的伺服器（例如：gRPC Server 等）
 
 ### internal/config/config.go
 
@@ -293,61 +363,94 @@ go mod tidy
 
 ### 執行程式
 
+#### Windows 開發模式（推薦）
+
+使用提供的批次檔啟動各個伺服器：
+
+```batch
+# 啟動 Tour Server (預設 8080 埠)
+runTour.bat
+
+# 啟動 Lobby Server (預設 8081 埠)
+runLobby.bat
+
+# 啟動 Backend Admin Server (預設 8082 埠)
+runBackend.bat
+```
+
+每個批次檔會提示輸入服務名稱、版本和環境。
+
+#### Linux/Mac 開發模式
+
 ```bash
-# 開發模式（直接執行）
-# 執行後端 API 伺服器
-go run cmd/backend/main.go
+# 執行 Tour Server
+go run -ldflags "-X main.SERVICE_NAME=tour_server -X main.SERVICE_VERSION=0.0.1-dev -X main.SERVICE_ENV=dev" cmd/tour/main.go
 
-# 執行前端伺服器
-go run cmd/frontend/main.go
+# 執行 Lobby Server
+go run -ldflags "-X main.SERVICE_NAME=lobby_server -X main.SERVICE_VERSION=0.0.1-dev -X main.SERVICE_ENV=dev" cmd/lobby/main.go
 
-# 或指定參數
-go run cmd/backend/main.go --config configs/config.yaml
-go run cmd/frontend/main.go --config configs/config.yaml
+# 執行 Backend Admin Server
+go run -ldflags "-X main.SERVICE_NAME=backend_admin_server -X main.SERVICE_VERSION=0.0.1-dev -X main.SERVICE_ENV=dev" cmd/backend_admin/main.go
 ```
 
 ### 建置
 
 ```bash
 # 基本建置
-go build -o backend cmd/backend/main.go
-go build -o frontend cmd/frontend/main.go
+go build -o tour cmd/tour/main.go
+go build -o lobby cmd/lobby/main.go
+go build -o backend_admin cmd/backend_admin/main.go
 
 # 建置到特定目錄
-go build -o bin/backend cmd/backend/main.go
-go build -o bin/frontend cmd/frontend/main.go
+go build -o bin/tour cmd/tour/main.go
+go build -o bin/lobby cmd/lobby/main.go
+go build -o bin/backend_admin cmd/backend_admin/main.go
 
 # 建置並注入版本資訊（使用 -ldflags）
-# Backend 伺服器
+# Tour Server
 go build -ldflags "\
-  -X main.SERVICE_NAME=tour_helper_backend \
+  -X main.SERVICE_NAME=tour_server \
   -X main.SERVICE_ENV=production \
   -X main.SERVICE_VERSION=1.0.0" \
-  -o backend cmd/backend/main.go
+  -o tour cmd/tour/main.go
 
-# Frontend 伺服器
+# Lobby Server
 go build -ldflags "\
-  -X main.SERVICE_NAME=tour_helper_frontend \
+  -X main.SERVICE_NAME=lobby_server \
   -X main.SERVICE_ENV=production \
   -X main.SERVICE_VERSION=1.0.0" \
-  -o frontend cmd/frontend/main.go
+  -o lobby cmd/lobby/main.go
+
+# Backend Admin Server
+go build -ldflags "\
+  -X main.SERVICE_NAME=backend_admin_server \
+  -X main.SERVICE_ENV=production \
+  -X main.SERVICE_VERSION=1.0.0" \
+  -o backend_admin cmd/backend_admin/main.go
 
 # 開發環境建置
 go build -ldflags "\
-  -X main.SERVICE_NAME=tour_helper_backend \
+  -X main.SERVICE_NAME=tour_server \
   -X main.SERVICE_ENV=dev \
   -X main.SERVICE_VERSION=0.0.1-dev" \
-  -o backend cmd/backend/main.go
+  -o tour cmd/tour/main.go
 
 go build -ldflags "\
-  -X main.SERVICE_NAME=tour_helper_frontend \
+  -X main.SERVICE_NAME=lobby_server \
   -X main.SERVICE_ENV=dev \
   -X main.SERVICE_VERSION=0.0.1-dev" \
-  -o frontend cmd/frontend/main.go
+  -o lobby cmd/lobby/main.go
+
+go build -ldflags "\
+  -X main.SERVICE_NAME=backend_admin_server \
+  -X main.SERVICE_ENV=dev \
+  -X main.SERVICE_VERSION=0.0.1-dev" \
+  -o backend_admin cmd/backend_admin/main.go
 
 # 執行建置的檔案
-./backend    # 啟動後端 API 伺服器
-./frontend   # 啟動前端伺服器
+./tour           # 啟動 Tour Server
+./lobby          # 啟動 Lobby Server
+./backend_admin  # 啟動 Backend Admin Server
 ```
 
 **說明**：
@@ -714,10 +817,14 @@ go tool cover -html=coverage.out
 
 **使用方式**:
 
-1. 啟動前端伺服器:
+1. 啟動 Tour Server:
 
    ```bash
-   go run cmd/frontend/main.go
+   # Windows
+   runTour.bat
+
+   # Linux/Mac
+   go run -ldflags "-X main.SERVICE_NAME=tour_server -X main.SERVICE_VERSION=0.0.1-dev -X main.SERVICE_ENV=dev" cmd/tour/main.go
    ```
 
 2. 使用瀏覽器開啟測試頁面:
@@ -852,9 +959,51 @@ go tool cover -html=coverage.out
 
 所有伺服器都支援優雅關閉（Graceful Shutdown）：
 
-- Backend HTTP Server：等待現有請求完成（最多 5 秒）
-- Frontend HTTP Server：等待現有請求完成（最多 5 秒）
+- Tour HTTP/WebSocket Server：等待現有請求完成（最多 5 秒）
+- Lobby HTTP Server：等待現有請求完成（最多 5 秒）
+- Backend Admin HTTP Server：等待現有請求完成（最多 5 秒）
 - 其他伺服器：實作各自的優雅關閉邏輯
+
+## Redis 整合
+
+### Redis 用途
+
+本專案使用 Redis 作為各伺服器間的狀態交換中心：
+
+1. **會員狀態管理**：Lobby Server 將會員登入狀態寫入 Redis
+2. **伺服器狀態同步**：Tour Server 定時將伺服器狀態寫入 Redis
+3. **狀態監控**：Lobby Server 和 Backend Admin Server 從 Redis 讀取狀態
+4. **Session 管理**：JWT Token 驗證和 Session 資料儲存
+5. **快取**：景點資料、推薦結果快取
+
+### Redis Key 設計
+
+```text
+member:{memberID}:status      - 會員狀態
+tour:server:status            - Tour Server 狀態
+tour:destinations             - 景點快取
+session:{token}               - Session 資料
+cache:recommendation:{params} - 推薦結果快取
+```
+
+### Redis 安裝
+
+```bash
+# Docker 方式（推薦）
+docker run -d -p 6379:6379 --name redis redis:latest
+
+# 或使用持久化
+docker run -d -p 6379:6379 --name redis \
+  -v redis_data:/data \
+  redis:latest redis-server --appendonly yes
+```
+
+### 待實作功能
+
+- [ ] Redis 客戶端連線池
+- [ ] 狀態寫入/讀取方法
+- [ ] Redis Pub/Sub 即時通知
+- [ ] 快取策略實作
 
 ## 部署
 
