@@ -1,0 +1,6 @@
+{"level":"info","message":"應用程式啟動","timestamp":"2025-11-18 09:57:57"}
+{"level":"info","message":"這是一般訊息","timestamp":"2025-11-18 09:57:57"}
+{"level":"warning","message":"這是警告訊息","timestamp":"2025-11-18 09:57:57"}
+{"level":"info","message":"使用者 Alice 已登入","timestamp":"2025-11-18 09:57:57"}
+{"level":"info","message":"使用者操作","timestamp":"2025-11-18 09:57:57","user_id":123}
+{"action":"login","level":"info","message":"使用者登入事件","timestamp":"2025-11-18 09:57:57","user_id":123}

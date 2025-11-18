@@ -14,8 +14,6 @@ type Config struct {
 	Database DatabaseConfig
 	Line     LineBotConfig
 	Telegram TelegramBotConfig
-	Weather  WeatherConfig
-	Maps     MapsConfig
 	Log      LogConfig
 }
 
@@ -27,19 +25,60 @@ type ServerConfig struct {
 	Version string
 }
 
-// DatabaseConfig 資料庫設定（MySQL）
+// DatabaseConfig 資料庫設定（MySQL Master-Slave 架構）
 type DatabaseConfig struct {
-	Host            string
-	Port            string
-	User            string
-	Password        string
-	DBName          string
-	Charset         string
-	ParseTime       bool
-	Loc             string
+	Masters []MasterDBConfig // Master 資料庫列表（可根據 Schema 區分）
+	Slaves  []SlaveDBConfig  // Slave 資料庫列表（數量不定，可為空）
+
+	// 全域連線池設定（所有 Master/Slave 共用）
 	MaxIdleConns    int
 	MaxOpenConns    int
 	ConnMaxLifetime int // 秒
+}
+
+// MasterDBConfig Master 資料庫設定
+type MasterDBConfig struct {
+	Name     string // Master 識別名稱（例如：main, analytics）
+	Host     string
+	Port     string
+	User     string
+	Password string
+	DBName   string
+	Charset  string
+	ParseTime bool
+	Loc      string
+
+	// 可選：針對特定 Schema 的設定
+	Schema string // 如果需要根據 Schema 區分 Master
+
+	// 可選：此 Master 專用的連線池設定（覆蓋全域設定）
+	MaxIdleConns    *int // nil 表示使用全域設定
+	MaxOpenConns    *int
+	ConnMaxLifetime *int
+}
+
+// SlaveDBConfig Slave 資料庫設定
+type SlaveDBConfig struct {
+	Name     string // Slave 識別名稱（例如：slave1, slave2）
+	Host     string
+	Port     string
+	User     string
+	Password string
+	DBName   string
+	Charset  string
+	ParseTime bool
+	Loc      string
+
+	// 負載平衡權重（數值越大，被選中機率越高）
+	Weight int
+
+	// 可選：此 Slave 專用的連線池設定
+	MaxIdleConns    *int
+	MaxOpenConns    *int
+	ConnMaxLifetime *int
+
+	// 可選：指定此 Slave 對應的 Master
+	MasterName string
 }
 
 // LineBotConfig Line Bot 設定
@@ -55,23 +94,12 @@ type TelegramBotConfig struct {
 	Token   string
 }
 
-// WeatherConfig 天氣 API 設定
-type WeatherConfig struct {
-	APIKey   string
-	Provider string // openweathermap, weatherapi, etc.
-}
-
-// MapsConfig 地圖 API 設定
-type MapsConfig struct {
-	APIKey   string
-	Provider string // google, here, mapbox, etc.
-}
-
 // LogConfig 日誌設定
 type LogConfig struct {
-	MaxSize    int // MB
-	MaxBackups int // 保留的舊日誌檔案數量
-	MaxAge     int // 保留的天數
+	Level      string // 日誌等級: debug, info, warn, error, fatal
+	MaxSize    int    // MB
+	MaxBackups int    // 保留的舊日誌檔案數量
+	MaxAge     int    // 保留的天數
 	Compress   bool
 }
 
@@ -127,6 +155,15 @@ func Load(serviceName, env, version string) (*Config, error) {
 	return &config, nil
 }
 
+// DefaultConfig 返回預設設定
+func DefaultConfig() *Config {
+	cfg, err := Load("TourHelper", "dev", "0.0.1")
+	if err != nil {
+		panic(fmt.Sprintf("無法載入預設設定: %v", err))
+	}
+	return cfg
+}
+
 // setDefaults 設定預設值
 func setDefaults() {
 	// Server 預設值
@@ -134,18 +171,29 @@ func setDefaults() {
 	viper.SetDefault("server.port", "8080")
 	viper.SetDefault("server.mode", "debug")
 
-	// Database 預設值（MySQL）
-	viper.SetDefault("database.host", "localhost")
-	viper.SetDefault("database.port", "3306")
-	viper.SetDefault("database.user", "root")
-	viper.SetDefault("database.password", "")
-	viper.SetDefault("database.dbname", "tourhelper")
-	viper.SetDefault("database.charset", "utf8mb4")
-	viper.SetDefault("database.parsetime", true)
-	viper.SetDefault("database.loc", "Local")
+	// Database 預設值（MySQL Master-Slave）
+	// 全域連線池設定
 	viper.SetDefault("database.maxidleconns", 10)
 	viper.SetDefault("database.maxopenconns", 100)
 	viper.SetDefault("database.connmaxlifetime", 3600) // 1 小時
+
+	// 預設 Master 設定（向後相容）
+	viper.SetDefault("database.masters", []map[string]any{
+		{
+			"name":      "main",
+			"host":      "localhost",
+			"port":      "3306",
+			"user":      "root",
+			"password":  "",
+			"dbname":    "tourhelper",
+			"charset":   "utf8mb4",
+			"parsetime": true,
+			"loc":       "Local",
+		},
+	})
+
+	// 預設 Slave 設定（空陣列，表示沒有 Slave）
+	viper.SetDefault("database.slaves", []map[string]any{})
 
 	// Line Bot 預設值
 	viper.SetDefault("line.enabled", false)
@@ -160,8 +208,8 @@ func setDefaults() {
 	viper.SetDefault("maps.provider", "google")
 
 	// Log 預設值
-	viper.SetDefault("log.maxsize", 100)    // 100 MB
-	viper.SetDefault("log.maxbackups", 3)   // 保留 3 個備份
-	viper.SetDefault("log.maxage", 28)      // 保留 28 天
-	viper.SetDefault("log.compress", true)  // 壓縮舊檔案
+	viper.SetDefault("log.maxsize", 100)   // 100 MB
+	viper.SetDefault("log.maxbackups", 3)  // 保留 3 個備份
+	viper.SetDefault("log.maxage", 28)     // 保留 28 天
+	viper.SetDefault("log.compress", true) // 壓縮舊檔案
 }

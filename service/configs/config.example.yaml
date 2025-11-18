@@ -1,0 +1,81 @@
+server:
+  host: 0.0.0.0
+  port: 8080
+  mode: debug # debug 或 release
+
+database:
+  # 全域連線池設定（適用於所有 Master 和 Slave）
+  maxidleconns: 10          # 最大閒置連線數
+  maxopenconns: 100         # 最大開啟連線數
+  connmaxlifetime: 3600     # 連線最大生命週期（秒）
+
+  # Master 資料庫列表（至少需要一個）
+  masters:
+    - name: main            # Master 識別名稱
+      host: localhost
+      port: "3306"
+      user: root
+      password: ""
+      dbname: tourhelper
+      charset: utf8mb4
+      parsetime: true
+      loc: Local
+      # schema: ""          # 可選：針對特定 Schema 的設定
+      # maxidleconns: 10    # 可選：覆蓋全域設定
+      # maxopenconns: 100   # 可選：覆蓋全域設定
+      # connmaxlifetime: 3600 # 可選：覆蓋全域設定
+
+    # 範例：根據 Schema 區分的第二個 Master
+    # - name: analytics
+    #   host: analytics-db.example.com
+    #   port: "3306"
+    #   user: analytics_user
+    #   password: "analytics_password"
+    #   dbname: analytics
+    #   charset: utf8mb4
+    #   parsetime: true
+    #   loc: Local
+    #   schema: analytics   # 指定此 Master 處理的 Schema
+
+  # Slave 資料庫列表（可選，數量不限）
+  slaves: []
+    # 範例：Slave 設定
+    # - name: slave1
+    #   host: slave1.example.com
+    #   port: "3306"
+    #   user: readonly_user
+    #   password: "readonly_password"
+    #   dbname: tourhelper
+    #   charset: utf8mb4
+    #   parsetime: true
+    #   loc: Local
+    #   weight: 100         # 負載平衡權重
+    #   mastername: main    # 對應的 Master 名稱
+    #
+    # - name: slave2
+    #   host: slave2.example.com
+    #   port: "3306"
+    #   user: readonly_user
+    #   password: "readonly_password"
+    #   dbname: tourhelper
+    #   charset: utf8mb4
+    #   parsetime: true
+    #   loc: Local
+    #   weight: 50          # 權重較低，被選中機率較小
+    #   mastername: main
+
+line:
+  enabled: false
+  channel_secret: YOUR_LINE_CHANNEL_SECRET
+  channel_access_token: YOUR_LINE_CHANNEL_ACCESS_TOKEN
+
+telegram:
+  enabled: false
+  token: YOUR_TELEGRAM_BOT_TOKEN
+
+log:
+  level: info # debug, info, warn, error
+  max_size: 100 # MB
+  max_backups: 7
+  max_age: 28 # 天
+  compress: true # 是否壓縮

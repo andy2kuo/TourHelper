@@ -37,9 +37,21 @@ TourHelper 是一個智慧旅遊推薦系統，根據使用者的當前位置、
 
 ```text
 TourHelper/
-├── backend/                 # 後端 Go 專案
-│   ├── cmd/tourhelper/     # 主程式進入點
+├── service/                 # 後端 Go 專案
+│   ├── cmd/                # 主程式進入點
+│   │   ├── backend/        # 後端 API 伺服器
+│   │   │   └── main.go
+│   │   └── frontend/       # 前端伺服器
+│   │       └── main.go
 │   ├── internal/           # 私有應用程式碼
+│   │   ├── config/         # 設定管理
+│   │   ├── server/         # 伺服器實作（backend/frontend）
+│   │   ├── services/       # 業務邏輯層
+│   │   ├── dao/            # 資料存取層
+│   │   ├── models/         # 資料模型層
+│   │   ├── database/       # 資料庫管理
+│   │   ├── logger/         # 日誌管理
+│   │   └── bot/            # Bot 整合（Line/Telegram）
 │   ├── pkg/                # 可重用的公開函式庫
 │   ├── configs/            # 設定檔
 │   └── README.md           # 後端說明文件
@@ -54,7 +66,7 @@ TourHelper/
 
 詳細的專案結構請參考：
 
-- [後端專案結構](backend/README.md#專案結構)
+- [後端專案結構](service/README.md#專案結構)
 - [前端專案結構](vue/README.md#專案結構)
 
 ## 快速開始
@@ -77,7 +89,7 @@ TourHelper/
 1. 進入後端目錄並安裝依賴
 
    ```bash
-   cd backend
+   cd service
    go mod download
    ```
 
@@ -91,15 +103,20 @@ TourHelper/
 1. 執行程式
 
    ```bash
-   # 開發模式
-   go run cmd/tourhelper/main.go
+   # 執行後端 API 伺服器
+   go run cmd/backend/main.go
+
+   # 執行前端伺服器
+   go run cmd/frontend/main.go
 
    # 或建置後執行
-   go build -o tourhelper cmd/tourhelper/main.go
-   ./tourhelper
+   go build -o backend cmd/backend/main.go
+   go build -o frontend cmd/frontend/main.go
+   ./backend
+   ./frontend
    ```
 
-詳細的後端開發指南請參考 [backend/README.md](backend/README.md)
+詳細的後端開發指南請參考 [service/README.md](service/README.md)
 
 ### 前端安裝與執行
 
@@ -130,7 +147,7 @@ TourHelper/
 
 1. 在 [Line Developers](https://developers.line.biz/) 建立 Messaging API Channel
 1. 取得 Channel Secret 和 Channel Access Token
-1. 在 `backend/configs/config.yaml` 中設定：
+1. 在 `service/configs/config.yaml` 中設定：
 
    ```yaml
    line:
@@ -143,7 +160,7 @@ TourHelper/
 
 1. 透過 [@BotFather](https://t.me/botfather) 建立 Bot
 1. 取得 Bot Token
-1. 在 `backend/configs/config.yaml` 中設定：
+1. 在 `service/configs/config.yaml` 中設定：
 
    ```yaml
    telegram:
@@ -173,13 +190,13 @@ database:
   # dsn: host=localhost user=user password=password dbname=tourhelper port=5432 sslmode=disable
 ```
 
-更多設定說明請參考 [backend/README.md#設定說明](backend/README.md#設定說明)
+更多設定說明請參考 [service/README.md#設定說明](service/README.md#設定說明)
 
 ## 開發
 
 ### 後端開發
 
-請參考 [backend/README.md](backend/README.md) 了解：
+請參考 [service/README.md](service/README.md) 了解：
 
 - 開發指令
 - 測試方法

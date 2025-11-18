@@ -1,4 +1,4 @@
-package server
+package frontend
 
 import (
 	"github.com/gin-gonic/gin"

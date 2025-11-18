@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 專案說明文件，包含專案概述、快速開始指南、開發指令等資訊。
 
-### ./backend/README.md
+### ./service/README.md
 
 後端 Go 專案說明文件，包含後端架構、API 文件、資料庫設計等資訊。
 
@@ -66,21 +66,28 @@ go mod tidy
 ### Building
 
 ```bash
-# Build the application
-go build -o tourhelper
+# Build the backend server
+go build -o backend ./cmd/backend
+
+# Build the frontend server
+go build -o frontend ./cmd/frontend
 
 # Build with specific output location
-go build -o bin/tourhelper ./cmd/tourhelper
+go build -o bin/backend ./cmd/backend
+go build -o bin/frontend ./cmd/frontend
 ```
 
 ### Running
 
 ```bash
-# Run directly without building
-go run main.go
+# Run backend server
+go run cmd/backend/main.go
 
-# Run with arguments
-go run main.go [args]
+# Run frontend server
+go run cmd/frontend/main.go
+
+# Run with arguments (if needed)
+go run cmd/backend/main.go [args]
 ```
 
 ### Testing
@@ -124,7 +131,7 @@ go vet ./...
 
 ## Project Structure
 
-請參考 ./backend/README.md 和 ./vue/README.md 了解後端和前端的詳細專案結構。
+請參考 ./service/README.md 和 ./vue/README.md 了解後端和前端的詳細專案結構。
 
 ### 後端分層架構
 
@@ -133,7 +140,7 @@ go vet ./...
 ```text
 外部請求（HTTP / Bot / gRPC 等）
     ↓
-[Handlers] ← server/handlers.go（處理請求/回應、參數驗證）
+[Handlers] ← server/backend/backend-handler.go 或 server/frontend/frontend-handler.go（處理請求/回應、參數驗證）
     ↓
 [Services] ← services/（業務邏輯處理）
     ↓
@@ -146,12 +153,16 @@ go vet ./...
 
 ### 重要套件說明
 
-* **cmd/tourhelper/main.go**: 應用程式進入點，初始化設定、建立 server、優雅關閉
+* **cmd/backend/main.go**: 後端 API 伺服器進入點，初始化設定、建立 backend server、優雅關閉
+* **cmd/frontend/main.go**: 前端伺服器進入點，初始化設定、建立 frontend server、優雅關閉
 * **internal/config/**: 設定管理，使用 Viper 載入 YAML 設定檔和環境變數
-* **internal/server/**: 伺服器實作，包含 Server 介面、HTTP 伺服器和 Handlers
+* **internal/server/**: 伺服器實作，包含 Server 介面和 backend/frontend 兩個子套件
+  * **server/backend/**: 後端 API 伺服器實作和 Handlers
+  * **server/frontend/**: 前端伺服器實作和 Handlers
 * **internal/services/**: 業務邏輯層，處理核心業務邏輯（使用單例模式）
 * **internal/dao/**: 資料存取層，封裝所有資料庫 CRUD 操作（使用單例模式）
 * **internal/models/**: 資料模型層，定義資料結構和 GORM 標籤
+* **internal/database/**: 資料庫管理，提供連線、初始化等功能
 * **internal/logger/**: 日誌管理，使用 Logrus + Lumberjack
 * **internal/bot/**: Bot 整合，包含 Line 和 Telegram Bot 實作
 

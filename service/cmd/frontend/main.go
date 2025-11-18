@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -16,34 +16,34 @@ var SERVICE_NAME = "tour_helper"  // 預設值，會在編譯時透過 -ldflags 
 var SERVICE_ENV = "dev"           // 預設值，會在編譯時透過 -ldflags 覆寫
 var SERVICE_VERSION = "0.0.1-dev" // 預設值，會在編譯時透過 -ldflags 覆寫
 
-func main() {
+var cfg *config.Config
+
+func init() {
 	SERVICE_ENV = strings.ToLower(SERVICE_ENV)
 
+	var err error
 	// 載入設定（需要先載入才能取得 log 設定）
-	cfg, err := config.Load(SERVICE_NAME, SERVICE_ENV, SERVICE_VERSION)
+	cfg, err = config.Load(SERVICE_NAME, SERVICE_ENV, SERVICE_VERSION)
 	if err != nil {
-		log.Fatalf("無法載入設定: %v", err)
+		panic(fmt.Errorf("無法載入設定: %v", err))
 	}
+	
+	fmt.Println("設定檔載入成功")
 
 	// 初始化 Logger（使用設定檔中的 log 設定）
-	if err := logger.Init(SERVICE_NAME, SERVICE_ENV, cfg.Log); err != nil {
-		log.Fatalf("無法初始化 Logger: %v", err)
-	}
+	logger.Init(SERVICE_NAME, SERVICE_ENV, cfg.Log)
 
-	logger.WithFields(map[string]interface{}{
-		"service": SERVICE_NAME,
-		"env":     SERVICE_ENV,
-		"version": SERVICE_VERSION,
-	}).Info("應用程式啟動")
+	
+}
 
-	logger.Info("設定檔載入成功")
-
+func main() {
 	// 建立伺服器選項
 	opts := &server.Options{
 		Config:      cfg,
 		ServiceName: SERVICE_NAME,
 		ServiceEnv:  SERVICE_ENV,
 		Version:     SERVICE_VERSION,
+		Blocking:    false, // 非阻塞模式
 	}
 
 	// 建立 HTTP 伺服器

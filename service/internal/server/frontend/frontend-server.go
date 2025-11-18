@@ -1,4 +1,4 @@
-package server
+package frontend
 
 import (
 	"context"
@@ -9,19 +9,20 @@ import (
 	"github.com/andy2kuo/TourHelper/internal/bot/line"
 	"github.com/andy2kuo/TourHelper/internal/bot/telegram"
 	"github.com/andy2kuo/TourHelper/internal/logger"
+	"github.com/andy2kuo/TourHelper/internal/server"
 	"github.com/gin-gonic/gin"
 )
 
 // HTTPServer HTTP 伺服器實作
 type HTTPServer struct {
 	router             *gin.Engine
-	config             *Options
+	config             *server.Options
 	httpServer         *http.Server
 	healthCheckHandler *HealthCheckHandler
 }
 
-// NewHTTPServer 建立新的 HTTP 伺服器
-func NewHTTPServer(opts *Options) *HTTPServer {
+// Init 建立新的 HTTP 伺服器
+func (s *HTTPServer) Init(opts *server.Options) *HTTPServer {
 	// 設定 Gin 模式
 	if opts.ServiceEnv == "release" || opts.ServiceEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -40,11 +41,9 @@ func NewHTTPServer(opts *Options) *HTTPServer {
 		opts.Config.Server.Version,
 	)
 
-	s := &HTTPServer{
-		router:             r,
-		config:             opts,
-		healthCheckHandler: healthCheckHandler,
-	}
+	s.router = r
+	s.config = opts
+	s.healthCheckHandler = healthCheckHandler
 
 	// 註冊路由
 	s.setupRoutes()
