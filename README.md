@@ -19,7 +19,7 @@ TourHelper 是一個智慧旅遊推薦系統，根據使用者的當前位置、
 
 - **程式語言**：Go 1.25+
 - **Web 框架**：Gin Web Framework
-- **資料庫**：支援 SQLite / MySQL / PostgreSQL
+- **資料庫**：支援 MySQL
 - **ORM**：GORM
 - **配置管理**：Viper
 - **Bot 整合**：Line Bot SDK、Telegram Bot API
