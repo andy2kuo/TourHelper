@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket 測試頁面 - TourHelper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: #667eea;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin-bottom: 10px;
+        }
+        .status {
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-indicator.connected {
+            background: #28a745;
+            box-shadow: 0 0 8px #28a745;
+        }
+        .status-indicator.disconnected {
+            background: #dc3545;
+        }
+        .controls {
+            padding: 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #495057;
+        }
+        input, textarea, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .messages {
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+        .message {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            word-wrap: break-word;
+        }
+        .message.sent {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+        }
+        .message.received {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+        .message.system {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+        }
+        .message.error {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+        }
+        .timestamp {
+            font-size: 11px;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        .clear-btn {
+            background: #dc3545;
+            margin-top: 10px;
+        }
+        .clear-btn:hover {
+            background: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌐 WebSocket 測試頁面</h1>
+            <p>TourHelper - 即時通訊測試工具</p>
+        </div>
+
+        <div class="status">
+            <span class="status-indicator" id="statusIndicator"></span>
+            <span id="statusText">未連線</span>
+            <span style="float: right; color: #6c757d;" id="clientCount">連線數: 0</span>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="serverUrl">伺服器位址</label>
+                <input type="text" id="serverUrl" value="ws://localhost:8080/ws" placeholder="ws://localhost:8080/ws">
+            </div>
+
+            <div class="control-group">
+                <label for="clientId">客戶端 ID（可選）</label>
+                <input type="text" id="clientId" placeholder="例如: user123">
+            </div>
+
+            <div class="control-group button-group">
+                <button id="connectBtn" onclick="connect()">連線</button>
+                <button id="disconnectBtn" onclick="disconnect()" disabled>斷線</button>
+            </div>
+
+            <div class="control-group">
+                <label for="messageType">訊息類型</label>
+                <input type="text" id="messageType" value="chat" placeholder="例如: chat, notification">
+            </div>
+
+            <div class="control-group">
+                <label for="messageData">訊息內容</label>
+                <textarea id="messageData" placeholder='例如: {"text": "Hello World"}'></textarea>
+            </div>
+
+            <div class="control-group">
+                <button id="sendBtn" onclick="sendMessage()" disabled>發送訊息</button>
+            </div>
+        </div>
+
+        <div class="messages" id="messages">
+            <div class="message system">
+                <div class="timestamp">系統訊息</div>
+                <div>歡迎使用 WebSocket 測試工具！請先連線到伺服器。</div>
+            </div>
+        </div>
+
+        <button class="clear-btn" onclick="clearMessages()">清空訊息</button>
+    </div>
+
+    <script>
+        let ws = null;
+
+        function addMessage(type, content) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+
+            const timestamp = new Date().toLocaleTimeString('zh-TW');
+            messageDiv.innerHTML = `
+                <div class="timestamp">${timestamp}</div>
+                <div>${escapeHtml(content)}</div>
+            `;
+
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function updateStatus(connected) {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            const sendBtn = document.getElementById('sendBtn');
+
+            if (connected) {
+                indicator.className = 'status-indicator connected';
+                statusText.textContent = '已連線';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                sendBtn.disabled = false;
+            } else {
+                indicator.className = 'status-indicator disconnected';
+                statusText.textContent = '未連線';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                sendBtn.disabled = true;
+            }
+        }
+
+        function connect() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const clientId = document.getElementById('clientId').value;
+
+            let url = serverUrl;
+            if (clientId) {
+                url += `?client_id=${encodeURIComponent(clientId)}`;
+            }
+
+            try {
+                ws = new WebSocket(url);
+
+                ws.onopen = function(event) {
+                    addMessage('system', '✅ WebSocket 連線成功！');
+                    updateStatus(true);
+                    fetchClientCount();
+                };
+
+                ws.onmessage = function(event) {
+                    addMessage('received', '📥 收到訊息: ' + event.data);
+
+                    // 嘗試解析 JSON 並美化顯示
+                    try {
+                        const json = JSON.parse(event.data);
+                        const pretty = JSON.stringify(json, null, 2);
+                        addMessage('received', '📋 解析後:\n' + pretty);
+                    } catch (e) {
+                        // 不是 JSON 格式,忽略
+                    }
+                };
+
+                ws.onerror = function(error) {
+                    addMessage('error', '❌ WebSocket 錯誤: ' + error);
+                };
+
+                ws.onclose = function(event) {
+                    addMessage('system', `🔌 WebSocket 連線關閉 (code: ${event.code})`);
+                    updateStatus(false);
+                };
+            } catch (error) {
+                addMessage('error', '❌ 連線失敗: ' + error.message);
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function sendMessage() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addMessage('error', '❌ WebSocket 未連線');
+                return;
+            }
+
+            const messageType = document.getElementById('messageType').value;
+            const messageData = document.getElementById('messageData').value;
+
+            let data;
+            try {
+                data = messageData ? JSON.parse(messageData) : {};
+            } catch (e) {
+                data = messageData;
+            }
+
+            const message = {
+                type: messageType,
+                data: data
+            };
+
+            const messageStr = JSON.stringify(message);
+            ws.send(messageStr);
+            addMessage('sent', '📤 發送訊息: ' + messageStr);
+        }
+
+        function clearMessages() {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = '';
+            addMessage('system', '訊息已清空');
+        }
+
+        function fetchClientCount() {
+            fetch('http://localhost:8080/ws/info')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('clientCount').textContent = `連線數: ${data.clients}`;
+                })
+                .catch(error => {
+                    console.error('無法取得連線數:', error);
+                });
+        }
+
+        // 每 5 秒更新連線數
+        setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                fetchClientCount();
+            }
+        }, 5000);
+
+        // 支援 Enter 鍵發送訊息
+        document.getElementById('messageData').addEventListener('keydown', function(event) {
+            if (event.ctrlKey && event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>

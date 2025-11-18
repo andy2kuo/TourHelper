@@ -1,4 +1,4 @@
-package frontend
+package tour
 
 import (
 	"context"
@@ -12,15 +12,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// HTTPServer HTTP 伺服器實作
-type HTTPServer struct {
+// TourServer 旅遊伺服器,使用 Gin 框架,提供 HTTP + WebSocket
+// 主要功能:處理旅遊相關的業務邏輯
+type TourServer struct {
 	router     *gin.Engine
 	opt        *server.Options
 	httpServer *http.Server
+	wsHub      *Hub // WebSocket Hub
 }
 
-// Init 建立新的 HTTP 伺服器
-func (s *HTTPServer) Init(opts *server.Options) error {
+// Init 初始化伺服器
+func (s *TourServer) Init(opts *server.Options) error {
 	// 設定 Gin 模式
 	if opts.ServiceEnv == "release" {
 		gin.SetMode(gin.ReleaseMode)
@@ -35,6 +37,11 @@ func (s *HTTPServer) Init(opts *server.Options) error {
 	s.router = r
 	s.opt = opts
 
+	// 建立並啟動 WebSocket Hub
+	s.wsHub = NewHub()
+	go s.wsHub.Run()
+	logger.Info("WebSocket Hub 已啟動")
+
 	// 註冊路由
 	s.setupRoutes()
 
@@ -42,10 +49,20 @@ func (s *HTTPServer) Init(opts *server.Options) error {
 }
 
 // setupRoutes 設定所有路由
-func (s *HTTPServer) setupRoutes() {
+func (s *TourServer) setupRoutes() {
 	// 設定靜態檔案服務（用於 Vue.js 前端）
 	s.router.Static("/assets", "./web/dist/assets")
 	s.router.StaticFile("/", "./web/dist/index.html")
+
+	// WebSocket 路由
+	wsHandler := NewWebSocketHandler(s.wsHub)
+	s.router.GET("/ws", wsHandler.HandleWebSocket)
+	s.router.GET("/ws/info", wsHandler.HandleWebSocketInfo)
+	logger.Info("WebSocket 路由已設定: /ws")
+
+	// 健康檢查路由
+	healthCheck := NewHealthCheckHandler(s.opt.ServiceName, s.opt.ServiceEnv, s.opt.Version)
+	s.router.GET("/health", healthCheck.Handle)
 
 	// Line Bot webhook
 	if s.opt.Config.Line.Enabled {
@@ -64,11 +81,12 @@ func (s *HTTPServer) setupRoutes() {
 		logger.Info("Telegram Bot 已啟用")
 	}
 
-	// TODO: 在此處添加更多路由
+	// TODO: 在此處添加旅遊相關的 API 路由
+	// 例如: 推薦景點、查詢景點資訊、使用者偏好設定等
 }
 
 // Start 啟動 HTTP 伺服器
-func (s *HTTPServer) Start() error {
+func (s *TourServer) Start() error {
 	addr := fmt.Sprintf("%s:%d", s.opt.Config.Server.Host, s.opt.Config.Server.Port)
 
 	s.httpServer = &http.Server{
@@ -76,7 +94,7 @@ func (s *HTTPServer) Start() error {
 		Handler: s.router,
 	}
 
-	logger.Infof("HTTP 伺服器啟動於 %s", addr)
+	logger.Infof("Tour 伺服器啟動於 %s", addr)
 
 	// 檢查是否有配置 SSL 憑證
 	if s.opt.Config.Server.CertFile != "" {
@@ -110,10 +128,12 @@ func (s *HTTPServer) Start() error {
 }
 
 // Stop 停止 HTTP 伺服器
-func (s *HTTPServer) Stop(ctx context.Context) error {
+func (s *TourServer) Stop(ctx context.Context) error {
 	if s.httpServer == nil {
 		return nil
 	}
+
+	logger.Info("正在關閉 Tour 伺服器...")
 
 	if err := s.httpServer.Shutdown(ctx); err != nil {
 		return err
@@ -123,6 +143,11 @@ func (s *HTTPServer) Stop(ctx context.Context) error {
 }
 
 // Name 返回伺服器名稱
-func (s *HTTPServer) Name() string {
-	return "HTTP Server"
+func (s *TourServer) Name() string {
+	return "Tour Server"
+}
+
+// GetHub 取得 WebSocket Hub (供 Lobby Server 使用)
+func (s *TourServer) GetHub() *Hub {
+	return s.wsHub
 }

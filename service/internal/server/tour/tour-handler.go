@@ -1,4 +1,4 @@
-package frontend
+package tour
 
 import (
 	"github.com/gin-gonic/gin"

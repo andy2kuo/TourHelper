@@ -7,10 +7,10 @@ import (
 	"github.com/andy2kuo/TourHelper/internal/config"
 	"github.com/andy2kuo/TourHelper/internal/logger"
 	"github.com/andy2kuo/TourHelper/internal/server"
-	"github.com/andy2kuo/TourHelper/internal/server/frontend"
+	"github.com/andy2kuo/TourHelper/internal/server/tour"
 )
 
-var SERVICE_NAME = "tour_helper"  // 預設值，會在編譯時透過 -ldflags 覆寫
+var SERVICE_NAME = "tour_server"  // 預設值，會在編譯時透過 -ldflags 覆寫
 var SERVICE_ENV = "dev"           // 預設值，會在編譯時透過 -ldflags 覆寫
 var SERVICE_VERSION = "0.0.1-dev" // 預設值，會在編譯時透過 -ldflags 覆寫
 
@@ -44,11 +44,11 @@ func main() {
 		Version:     SERVICE_VERSION,
 	}
 
-	logger.Infof("啟動應用程式 %s，版本 %s", SERVICE_NAME, SERVICE_VERSION)
+	logger.Infof("啟動 Tour Server %s，版本 %s", SERVICE_NAME, SERVICE_VERSION)
 	// 這裡會Block直到伺服器停止
-	err := server.StartServer(&frontend.HTTPServer{}, opts)
+	err := server.StartServer(&tour.TourServer{}, opts)
 	if err != nil {
-		logger.Fatalf("伺服器啟動失敗: %v", err)
+		logger.Fatalf("Tour Server 啟動失敗: %v", err)
 	}
 
 	logger.Info("應用程式已關閉")

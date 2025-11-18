@@ -6,12 +6,13 @@ TourHelper 後端服務，使用 Go 語言和 Gin 框架建構，提供旅遊推
 
 - **程式語言**：Go 1.25+
 - **Web 框架**：Gin Web Framework
+- **WebSocket**：gorilla/websocket
 - **資料庫**：支援 SQLite / MySQL / PostgreSQL
 - **ORM**：GORM
 - **配置管理**：Viper
 - **Bot 整合**：Line Bot SDK、Telegram Bot API
 - **測試框架**：Go testing、Testify
-- **日誌**：標準 log 套件（可擴展為 Logrus 或 Zap）
+- **日誌**：Logrus + Lumberjack（支援 log rotation）
 
 ## 專案結構
 
@@ -31,8 +32,11 @@ service/
 │   │   │   ├── backend-server.go   # Backend 伺服器實作（Gin）
 │   │   │   └── backend-handler.go  # Backend API 請求處理器
 │   │   └── frontend/       # 前端伺服器實作
-│   │       ├── frontend-server.go  # Frontend 伺服器實作（Gin）
-│   │       └── frontend-handler.go # Frontend 請求處理器和 Bot webhook
+│   │       ├── frontend-server.go   # Frontend 伺服器實作（Gin）
+│   │       ├── frontend-handler.go  # Frontend 請求處理器
+│   │       ├── websocket-hub.go     # WebSocket 連線管理（Hub）
+│   │       ├── websocket-client.go  # WebSocket 客戶端連線
+│   │       └── websocket-handler.go # WebSocket 請求處理器
 │   ├── database/           # 資料庫管理
 │   │   ├── database.go     # 資料庫連線管理、初始化
 │   │   └── example_usage.go # 使用範例
@@ -155,20 +159,33 @@ service/
     - 未來可新增各種 API 端點處理器
 
 - **frontend/**：前端伺服器實作
-  - **frontend-server.go**：使用 Gin 框架實作 Frontend HTTP 伺服器
+  - **frontend-server.go**：使用 Gin 框架實作 Frontend HTTP/WebSocket 伺服器
     - 註冊前端路由
     - 支援靜態檔案服務
+    - 整合 WebSocket 即時通訊
     - 整合 Line 和 Telegram Bot webhook
     - 支援優雅關閉
   - **frontend-handler.go**：前端請求處理器
     - HealthCheckHandler：處理健康檢查請求
-    - Bot webhook handlers
+  - **websocket-hub.go**：WebSocket 連線管理中心
+    - 管理所有 WebSocket 客戶端連線
+    - 支援廣播訊息給所有客戶端
+    - 支援點對點訊息傳送
+    - 自動清理斷線的客戶端
+  - **websocket-client.go**：WebSocket 客戶端連線
+    - 處理單一客戶端的讀寫操作
+    - 支援心跳檢測（ping/pong）
+    - 自動處理訊息序列化
+  - **websocket-handler.go**：WebSocket HTTP 請求處理器
+    - 處理 WebSocket 升級請求
+    - 提供連線資訊 API
 
 **設計理念**：透過 Server 介面和前後端分離架構，可以：
 
 1. 獨立部署和擴展前後端伺服器
-2. 輕鬆新增其他類型的伺服器（例如：gRPC Server、WebSocket Server 等）
-3. 清晰的職責劃分：Backend 專注於 API 服務，Frontend 專注於頁面和 Bot 整合
+2. 輕鬆新增其他類型的伺服器（例如：gRPC Server 等）
+3. 清晰的職責劃分：Backend 專注於 API 服務，Frontend 專注於頁面、WebSocket 和 Bot 整合
+4. 同時支援 HTTP 和 WebSocket 協定，提供即時通訊功能
 
 ### internal/config/config.go
 
@@ -497,7 +514,83 @@ GET /health
 
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "service": "TourHelper",
+  "env": "dev",
+  "version": "0.0.1"
+}
+```
+
+### WebSocket
+
+#### WebSocket 連線
+
+```http
+GET /ws?client_id={客戶端ID}
+```
+
+升級 HTTP 連線為 WebSocket，用於即時通訊。
+
+**查詢參數**:
+
+- `client_id`（可選）：客戶端唯一識別碼，用於點對點訊息傳送
+
+**訊息格式**:
+
+```json
+{
+  "type": "訊息類型",
+  "data": "訊息內容",
+  "from": "發送者ID",
+  "to": "接收者ID（選填，空表示廣播）",
+  "payload": {
+    "額外資料": "值"
+  }
+}
+```
+
+**範例**：
+
+```javascript
+// 建立 WebSocket 連線
+const ws = new WebSocket('ws://localhost:8080/ws?client_id=user123');
+
+// 監聽連線開啟
+ws.onopen = () => {
+  console.log('WebSocket 連線成功');
+
+  // 發送訊息
+  ws.send(JSON.stringify({
+    type: 'chat',
+    data: { text: 'Hello World' }
+  }));
+};
+
+// 監聽收到的訊息
+ws.onmessage = (event) => {
+  const message = JSON.parse(event.data);
+  console.log('收到訊息:', message);
+};
+```
+
+#### WebSocket 連線資訊
+
+```http
+GET /ws/info
+```
+
+取得當前 WebSocket 連線資訊。
+
+回應：
+
+```json
+{
+  "status": "ok",
+  "clients": 5,
+  "client_ids": ["user123", "user456"],
+  "endpoint": "/ws",
+  "description": "WebSocket endpoint for real-time communication",
+  "query_params": "client_id (optional) - Unique identifier for the client"
 }
 ```
 
@@ -614,6 +707,49 @@ go test ./pkg/utils -v
 go test -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out
 ```
+
+### WebSocket 測試
+
+專案提供了一個 WebSocket 測試頁面,位於 `examples/websocket-test.html`。
+
+**使用方式**:
+
+1. 啟動前端伺服器:
+
+   ```bash
+   go run cmd/frontend/main.go
+   ```
+
+2. 使用瀏覽器開啟測試頁面:
+
+   ```bash
+   # 直接在瀏覽器中開啟檔案
+   # Windows
+   start examples/websocket-test.html
+
+   # macOS
+   open examples/websocket-test.html
+
+   # Linux
+   xdg-open examples/websocket-test.html
+   ```
+
+3. 在測試頁面中:
+   - 設定伺服器位址(預設: `ws://localhost:8080/ws`)
+   - 輸入客戶端 ID(可選)
+   - 點擊「連線」按鈕建立 WebSocket 連線
+   - 輸入訊息類型和內容後點擊「發送訊息」
+   - 觀察訊息收發狀態
+
+**測試功能**:
+
+- ✅ WebSocket 連線建立和斷線
+- ✅ 訊息發送和接收
+- ✅ 廣播訊息(向所有客戶端發送)
+- ✅ 點對點訊息(向特定客戶端發送)
+- ✅ 連線狀態監控
+- ✅ 客戶端數量統計
+- ✅ 訊息格式驗證
 
 ## 擴展伺服器類型
 
