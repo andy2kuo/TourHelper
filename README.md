@@ -39,20 +39,27 @@ TourHelper 是一個智慧旅遊推薦系統，根據使用者的當前位置、
 TourHelper/
 ├── service/                 # 後端 Go 專案
 │   ├── cmd/                # 主程式進入點
-│   │   ├── backend/        # 後端 API 伺服器
-│   │   │   └── main.go
-│   │   └── frontend/       # 前端伺服器
-│   │       └── main.go
+│   │   ├── tour/           # Tour Server（旅遊推薦服務，HTTP + WebSocket）
+│   │   │   └── main.go     # 監聽 :8080
+│   │   ├── lobby/          # Lobby Server（會員登入驗證服務，HTTP Only）
+│   │   │   └── main.go     # 監聽 :8081
+│   │   └── backend/        # Backend Server（後台管理服務，HTTP Only）
+│   │       └── main.go     # 監聽 :8082
 │   ├── internal/           # 私有應用程式碼
-│   │   ├── config/         # 設定管理
-│   │   ├── server/         # 伺服器實作（backend/frontend）
-│   │   ├── services/       # 業務邏輯層
-│   │   ├── dao/            # 資料存取層
-│   │   ├── models/         # 資料模型層
-│   │   ├── database/       # 資料庫管理
-│   │   ├── logger/         # 日誌管理
+│   │   ├── config/         # 設定管理（Viper）
+│   │   ├── server/         # 伺服器實作
+│   │   │   ├── server.go   # Server 介面定義
+│   │   │   ├── tour/       # Tour Server 實作（handler + websocket hub/client）
+│   │   │   ├── lobby/      # Lobby Server 實作（handler）
+│   │   │   └── backend/    # Backend Server 實作（handler）
+│   │   ├── services/       # 業務邏輯層（推薦服務、天氣服務等）
+│   │   ├── dao/            # 資料存取層（User DAO、Destination DAO）
+│   │   ├── models/         # 資料模型層（User、Destination、Tag）
+│   │   ├── database/       # 資料庫管理（連線、初始化）
+│   │   ├── logger/         # 日誌管理（Logrus + Lumberjack）
 │   │   └── bot/            # Bot 整合（Line/Telegram）
 │   ├── pkg/                # 可重用的公開函式庫
+│   │   └── utils/          # 工具函式（距離計算等）
 │   ├── configs/            # 設定檔
 │   └── README.md           # 後端說明文件
 ├── vue/                     # 前端 Vue.js 專案
@@ -64,9 +71,28 @@ TourHelper/
 └── README.md                # 本檔案
 ```
 
+### 三伺服器架構
+
+本專案採用三個獨立伺服器架構，透過 Redis 進行狀態同步：
+
+```text
+                   [Redis 狀態中心]
+                          ↑  ↓
+        ┌─────────────────┴──┴───────────────┐
+        ↓                  ↓                  ↓
+[Tour Server]      [Lobby Server]    [Backend Server]
+(HTTP+WebSocket)      (HTTP Only)         (HTTP Only)
+  :8080                 :8081                :8082
+
+ - 旅遊推薦          - 會員登入驗證       - 後台管理
+ - 景點查詢          - LINE 登入          - 會員管理
+ - 即時通訊          - Token 驗證          - 系統設定
+ - Bot 整合          - 會員資訊管理        - 日誌查詢
+```
+
 詳細的專案結構請參考：
 
-- [後端專案結構](service/README.md#專案結構)
+- [後端專案結構與架構說明](service/README.md#專案結構)
 - [前端專案結構](vue/README.md#專案結構)
 
 ## 快速開始
@@ -103,17 +129,22 @@ TourHelper/
 1. 執行程式
 
    ```bash
-   # 執行後端 API 伺服器
+   # 執行 Tour Server（旅遊推薦服務，監聽 :8080）
+   go run cmd/tour/main.go
+
+   # 執行 Lobby Server（會員登入驗證服務，監聽 :8081）
+   go run cmd/lobby/main.go
+
+   # 執行 Backend Server（後台管理服務，監聽 :8082）
    go run cmd/backend/main.go
 
-   # 執行前端伺服器
-   go run cmd/frontend/main.go
-
    # 或建置後執行
+   go build -o tour cmd/tour/main.go
+   go build -o lobby cmd/lobby/main.go
    go build -o backend cmd/backend/main.go
-   go build -o frontend cmd/frontend/main.go
+   ./tour
+   ./lobby
    ./backend
-   ./frontend
    ```
 
 詳細的後端開發指南請參考 [service/README.md](service/README.md)
