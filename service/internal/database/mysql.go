@@ -1,0 +1,284 @@
+package database
+
+import (
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/andy2kuo/TourHelper/internal/config"
+	"github.com/andy2kuo/TourHelper/internal/logger"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	gormLogger "gorm.io/gorm/logger"
+	"gorm.io/plugin/dbresolver"
+)
+
+// MySQLManager MySQL 資料庫管理器（Master-Slave 架構）
+// 使用 GORM DBResolver 插件實現讀寫分離
+type MySQLManager struct {
+	databases map[string]*gorm.DB // 多個資料庫實例，key 為 Master 名稱或 Database
+	mu        sync.RWMutex        // 讀寫鎖
+
+	config config.DatabaseConfig
+}
+
+var (
+	mysqlInstance *MySQLManager
+	mysqlOnce     sync.Once
+)
+
+// InitMySQL 初始化 MySQL 資料庫連線（單例模式）
+func InitMySQL(cfg config.DatabaseConfig) error {
+	var err error
+	mysqlOnce.Do(func() {
+		mysqlInstance = &MySQLManager{
+			databases: make(map[string]*gorm.DB),
+			config:    cfg,
+		}
+		err = mysqlInstance.initialize()
+	})
+	return err
+}
+
+// GetMySQLInstance 取得 MySQLManager 實例
+func GetMySQLInstance() *MySQLManager {
+	if mysqlInstance == nil {
+		panic("mysql not initialized, call InitMySQL() first")
+	}
+	return mysqlInstance
+}
+
+// initialize 初始化所有資料庫連線
+func (m *MySQLManager) initialize() error {
+	if len(m.config.Masters) == 0 {
+		return fmt.Errorf("至少需要設定一個 Master 資料庫")
+	}
+
+	// 將 Master 按照 MasterName 分組，並找出對應的 Slaves
+	masterSlaveMap := m.groupSlavesByMaster()
+
+	// 為每個 Master 建立資料庫實例（含 DBResolver）
+	for _, masterCfg := range m.config.Masters {
+		db, err := m.createDatabaseWithResolver(masterCfg, masterSlaveMap[masterCfg.Name])
+		if err != nil {
+			return fmt.Errorf("建立資料庫實例 [%s] 失敗: %w", masterCfg.Name, err)
+		}
+
+		// 使用 Master 名稱作為 key
+		m.databases[masterCfg.Name] = db
+
+		// 如果有指定 Database，也用 Database 作為 key
+		if masterCfg.Database != "" {
+			m.databases[masterCfg.Database] = db
+		}
+	}
+
+	return nil
+}
+
+// groupSlavesByMaster 將 Slave 按照 MasterName 分組
+func (m *MySQLManager) groupSlavesByMaster() map[string][]config.SlaveDBConfig {
+	masterSlaveMap := make(map[string][]config.SlaveDBConfig)
+
+	for _, slaveCfg := range m.config.Slaves {
+		masterName := slaveCfg.MasterName
+		if masterName == "" {
+			// 如果未指定 MasterName，跳過並警告
+			logger.Warnf("Slave 資料庫未指定 MasterName，將被忽略: %+v", slaveCfg)
+			continue
+		}
+
+		if _, exists := masterSlaveMap[masterName]; !exists {
+			masterSlaveMap[masterName] = []config.SlaveDBConfig{}
+		}
+
+		logger.Infof("將 Slave 資料庫加入 Master [%s] 的讀取副本: %+v", masterName, slaveCfg)
+		masterSlaveMap[masterName] = append(masterSlaveMap[masterName], slaveCfg)
+	}
+
+	return masterSlaveMap
+}
+
+// createDatabaseWithResolver 建立包含 DBResolver 的資料庫實例
+func (m *MySQLManager) createDatabaseWithResolver(masterCfg config.MasterDBConfig, slaveCfgs []config.SlaveDBConfig) (*gorm.DB, error) {
+	// 1. 建立 Master 連線
+	masterDSN := m.buildDSN(masterCfg.Host, masterCfg.Port, masterCfg.User, masterCfg.Password,
+		masterCfg.DBName, masterCfg.Charset, masterCfg.ParseTime, masterCfg.Loc)
+
+	// 使用自訂的 GORM logger 將日誌輸出到 Logrus
+	db, err := gorm.Open(mysql.Open(masterDSN), &gorm.Config{
+		Logger: logger.NewGormLogger(
+			gormLogger.Info,
+			m.config.SlowQueryThreshold,
+			m.config.LogSlowQuery,
+			m.config.LogAllQueries,
+		),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("開啟 Master 連線失敗: %w", err)
+	}
+
+	// 2. 設定 Master 連線池
+	if err := m.configureConnectionPool(db, masterCfg.MaxIdleConns, masterCfg.MaxOpenConns, masterCfg.ConnMaxLifetime); err != nil {
+		return nil, fmt.Errorf("設定 Master 連線池失敗: %w", err)
+	}
+
+	// 3. 如果有 Slave，註冊 DBResolver
+	if len(slaveCfgs) > 0 {
+		// 建立 Replica (Slave) Dialectors
+		replicas := make([]gorm.Dialector, 0, len(slaveCfgs))
+		for _, slaveCfg := range slaveCfgs {
+			slaveDSN := m.buildDSN(slaveCfg.Host, slaveCfg.Port, slaveCfg.User, slaveCfg.Password,
+				slaveCfg.DBName, slaveCfg.Charset, slaveCfg.ParseTime, slaveCfg.Loc)
+			replicas = append(replicas, mysql.Open(slaveDSN))
+		}
+
+		// 取得 Replica 連線池設定（使用第一個 Slave 的設定或全域設定）
+		replicaMaxIdle := m.config.MaxIdleConns
+		replicaMaxOpen := m.config.MaxOpenConns
+		replicaMaxLifetime := m.config.ConnMaxLifetime
+		if len(slaveCfgs) > 0 && slaveCfgs[0].MaxIdleConns != nil {
+			replicaMaxIdle = *slaveCfgs[0].MaxIdleConns
+		}
+		if len(slaveCfgs) > 0 && slaveCfgs[0].MaxOpenConns != nil {
+			replicaMaxOpen = *slaveCfgs[0].MaxOpenConns
+		}
+		if len(slaveCfgs) > 0 && slaveCfgs[0].ConnMaxLifetime != nil {
+			replicaMaxLifetime = *slaveCfgs[0].ConnMaxLifetime
+		}
+
+		// 建立 DBResolver 設定
+		resolverConfig := dbresolver.Config{
+			Sources:  []gorm.Dialector{mysql.Open(masterDSN)}, // Master 作為 Source
+			Replicas: replicas,                                // Slaves 作為 Replicas
+			Policy:   dbresolver.RandomPolicy{},               // 使用隨機策略
+		}
+
+		// 註冊 DBResolver 並設定 Replica 連線池
+		if err := db.Use(dbresolver.Register(resolverConfig).
+			SetMaxIdleConns(replicaMaxIdle).
+			SetMaxOpenConns(replicaMaxOpen).
+			SetConnMaxLifetime(replicaMaxLifetime)); err != nil {
+			return nil, fmt.Errorf("註冊 DBResolver 失敗: %w", err)
+		}
+	}
+
+	return db, nil
+}
+
+// configureConnectionPool 設定連線池參數
+func (m *MySQLManager) configureConnectionPool(db *gorm.DB, maxIdle, maxOpen *int, maxLifetime *time.Duration) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+
+	// 使用個別設定或全域設定
+	idle := m.config.MaxIdleConns
+	if maxIdle != nil {
+		idle = *maxIdle
+	}
+
+	open := m.config.MaxOpenConns
+	if maxOpen != nil {
+		open = *maxOpen
+	}
+
+	lifetime := m.config.ConnMaxLifetime
+	if maxLifetime != nil {
+		lifetime = *maxLifetime
+	}
+
+	sqlDB.SetMaxIdleConns(idle)
+	sqlDB.SetMaxOpenConns(open)
+	sqlDB.SetConnMaxLifetime(lifetime)
+
+	return nil
+}
+
+// buildDSN 建立 MySQL DSN 字串
+func (m *MySQLManager) buildDSN(host, port, user, password, dbName, charset string, parseTime bool, loc string) string {
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=%s&parseTime=%t&loc=%s",
+		user, password, host, port, dbName, charset, parseTime, loc)
+}
+
+// GetDB 取得資料庫連線（自動讀寫分離）
+// 參數可以是 Master 名稱或 Database 名稱
+func (m *MySQLManager) GetDB(name ...string) *gorm.DB {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// 如果指定名稱，返回指定的資料庫
+	if len(name) > 0 && name[0] != "" {
+		if db, ok := m.databases[name[0]]; ok {
+			return db
+		}
+		panic(fmt.Sprintf("找不到資料庫 [%s]", name[0]))
+	}
+
+	// 未指定名稱，返回預設資料庫（通常是 "main"）
+	if len(m.databases) > 0 {
+		// 如果有名為 "main" 的資料庫，優先返回
+		if db, ok := m.databases["main"]; ok {
+			return db
+		}
+		// 否則返回第一個
+		for _, db := range m.databases {
+			return db
+		}
+	}
+
+	panic("沒有可用的資料庫")
+}
+
+// GetMaster 取得 Master 連線（明確指定使用 Master 進行寫入）
+// 使用 Clauses(dbresolver.Write) 確保使用 Master
+func (m *MySQLManager) GetMaster(name ...string) *gorm.DB {
+	return m.GetDB(name...).Clauses(dbresolver.Write)
+}
+
+// GetSlave 取得 Slave 連線（明確指定使用 Slave 進行讀取）
+// 使用 Clauses(dbresolver.Read) 確保使用 Slave（如無 Slave 則降級為 Master）
+func (m *MySQLManager) GetSlave(name ...string) *gorm.DB {
+	return m.GetDB(name...).Clauses(dbresolver.Read)
+}
+
+// GetByDatabase 根據 Database 名稱 取得對應的資料庫連線
+func (m *MySQLManager) GetByDatabase(database string) *gorm.DB {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// 尋找符合 Database 的資料庫
+	if db, ok := m.databases[database]; ok {
+		return db
+	}
+
+	// 找不到符合的 Database，返回預設資料庫
+	return m.GetDB()
+}
+
+// Close 關閉所有資料庫連線
+func (m *MySQLManager) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var errs []error
+
+	// 關閉所有資料庫連線（包含 Master 和 Slave）
+	for name, db := range m.databases {
+		sqlDB, err := db.DB()
+		if err != nil {
+			errs = append(errs, fmt.Errorf("取得資料庫 [%s] SQL DB 失敗: %w", name, err))
+			continue
+		}
+		if err := sqlDB.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("關閉資料庫 [%s] 失敗: %w", name, err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("關閉資料庫時發生錯誤: %v", errs)
+	}
+
+	return nil
+}

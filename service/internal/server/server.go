@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/andy2kuo/TourHelper/internal/config"
+	"github.com/andy2kuo/TourHelper/internal/database"
 	"github.com/andy2kuo/TourHelper/internal/logger"
 )
 
@@ -82,6 +83,12 @@ func StartServer(srv Server, opts *Options) error {
 		"version": opts.Version,
 	}).Infof("%v 以 %v 啟動，版本 %v", opts.ServiceName, envDesc, opts.Version)
 
+	// 初始化資料庫（MySQL 和 Redis）
+	logger.Info("初始化資料庫連線...")
+	if err := database.Init(opts.Config); err != nil {
+		return fmt.Errorf("資料庫初始化失敗: %w", err)
+	}
+
 	if err := srv.Init(opts); err != nil {
 		return err
 	}
@@ -111,6 +118,12 @@ func waitForShutdown(srv Server) {
 	if err := srv.Stop(ctx); err != nil {
 		logger.Errorf("伺服器關閉失敗: %v", err)
 		return
+	}
+
+	// 關閉資料庫連線
+	logger.Info("正在關閉資料庫連線...")
+	if err := database.Close(); err != nil {
+		logger.Errorf("資料庫關閉失敗: %v", err)
 	}
 
 	logger.Info("伺服器已關閉")

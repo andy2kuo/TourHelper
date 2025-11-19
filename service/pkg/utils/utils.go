@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"slices"
 	"math"
 )
 
@@ -33,10 +34,5 @@ func EstimateTravelTime(distance, averageSpeed float64) int {
 
 // Contains 檢查字串陣列是否包含特定字串
 func Contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, item)
 }

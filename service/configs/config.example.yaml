@@ -86,6 +86,46 @@ database:
     #   weight: 50          # 權重較低，被選中機率較小
     #   mastername: main
 
+redis:
+  # 全域連線池設定（適用於所有 Redis 實例）
+  poolSize: 10                # 連線池大小
+  minIdleConns: 2             # 最小閒置連線數
+  maxIdleConns: 5             # 最大閒置連線數
+  connMaxIdleTime: 5m         # 連線最大閒置時間（支援：ns, us, ms, s, m, h）
+  connMaxLifetime: 30m        # 連線最大存活時間
+  dialTimeout: 5s             # 連線超時時間
+  readTimeout: 3s             # 讀取超時時間
+  writeTimeout: 3s            # 寫入超時時間
+
+  # Redis 實例列表（可選，可設定多個實例用於不同用途）
+  instances: []
+    # 範例：主要 Redis 實例
+    # - name: main            # 實例識別名稱
+    #   host: localhost       # Redis 主機位址
+    #   port: 6379            # Redis 連接埠
+    #   password: ""          # Redis 密碼（選用）
+    #   db: 0                 # Redis 資料庫編號（0-15）
+    #   # database: ""        # 可選：針對特定 Database 的設定
+    #   # poolSize: 10        # 可選：覆蓋全域設定
+    #   # minIdleConns: 2     # 可選：覆蓋全域設定
+    #   # maxIdleConns: 5     # 可選：覆蓋全域設定
+    #
+    # 範例：快取專用 Redis 實例
+    # - name: cache
+    #   host: cache-redis.example.com
+    #   port: 6379
+    #   password: "cache_password"
+    #   db: 1
+    #   poolSize: 20          # 快取可能需要更大的連線池
+    #
+    # 範例：Session 專用 Redis 實例
+    # - name: session
+    #   host: session-redis.example.com
+    #   port: 6379
+    #   password: "session_password"
+    #   db: 0
+    #   database: session     # 與特定資料庫關聯
+
 line:
   enabled: false
   channel_secret: YOUR_LINE_CHANNEL_SECRET

@@ -14,6 +14,7 @@ import (
 type Config struct {
 	Server   ServerConfig      `mapstructure:"server" json:"server" yaml:"server"`
 	Database DatabaseConfig    `mapstructure:"database" json:"database" yaml:"database"`
+	Redis    RedisConfig       `mapstructure:"redis" json:"redis" yaml:"redis"`
 	Line     LineBotConfig     `mapstructure:"line" json:"line" yaml:"line"`
 	Telegram TelegramBotConfig `mapstructure:"telegram" json:"telegram" yaml:"telegram"`
 	Log      LogConfig         `mapstructure:"log" json:"log" yaml:"log"`
@@ -96,6 +97,43 @@ type SlaveDBConfig struct {
 
 	// 可選：指定此 Slave 對應的 Master
 	MasterName string `mapstructure:"masterName" json:"masterName" yaml:"masterName"`
+}
+
+// RedisConfig Redis 設定（支援多個 Redis 實例）
+type RedisConfig struct {
+	Instances []RedisInstanceConfig `mapstructure:"instances" json:"instances" yaml:"instances"` // Redis 實例列表
+
+	// 全域連線池設定（所有實例共用）
+	PoolSize         int           `mapstructure:"poolSize" json:"poolSize" yaml:"poolSize"`                      // 連線池大小
+	MinIdleConns     int           `mapstructure:"minIdleConns" json:"minIdleConns" yaml:"minIdleConns"`          // 最小閒置連線數
+	MaxIdleConns     int           `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns"`          // 最大閒置連線數
+	ConnMaxIdleTime  time.Duration `mapstructure:"connMaxIdleTime" json:"connMaxIdleTime" yaml:"connMaxIdleTime"` // 連線最大閒置時間
+	ConnMaxLifetime  time.Duration `mapstructure:"connMaxLifetime" json:"connMaxLifetime" yaml:"connMaxLifetime"` // 連線最大存活時間
+	DialTimeout      time.Duration `mapstructure:"dialTimeout" json:"dialTimeout" yaml:"dialTimeout"`             // 連線超時時間
+	ReadTimeout      time.Duration `mapstructure:"readTimeout" json:"readTimeout" yaml:"readTimeout"`             // 讀取超時時間
+	WriteTimeout     time.Duration `mapstructure:"writeTimeout" json:"writeTimeout" yaml:"writeTimeout"`          // 寫入超時時間
+}
+
+// RedisInstanceConfig Redis 實例設定
+type RedisInstanceConfig struct {
+	Name     string `mapstructure:"name" json:"name" yaml:"name"`         // 實例識別名稱（例如：main, session, cache）
+	Host     string `mapstructure:"host" json:"host" yaml:"host"`         // Redis 主機位址
+	Port     int    `mapstructure:"port" json:"port" yaml:"port"`         // Redis 連接埠
+	Password string `mapstructure:"password" json:"password" yaml:"password"` // Redis 密碼（可選）
+	DB       int    `mapstructure:"db" json:"db" yaml:"db"`               // Redis 資料庫編號（0-15）
+
+	// 可選：針對特定資料庫的設定（用於按 Database 名稱區分）
+	Database string `mapstructure:"database" json:"database" yaml:"database"` // 如果需要根據 Database 區分 Redis 實例
+
+	// 可選：此實例專用的連線池設定（覆蓋全域設定）
+	PoolSize        *int           `mapstructure:"poolSize" json:"poolSize" yaml:"poolSize"`                   // nil 表示使用全域設定
+	MinIdleConns    *int           `mapstructure:"minIdleConns" json:"minIdleConns" yaml:"minIdleConns"`
+	MaxIdleConns    *int           `mapstructure:"maxIdleConns" json:"maxIdleConns" yaml:"maxIdleConns"`
+	ConnMaxIdleTime *time.Duration `mapstructure:"connMaxIdleTime" json:"connMaxIdleTime" yaml:"connMaxIdleTime"`
+	ConnMaxLifetime *time.Duration `mapstructure:"connMaxLifetime" json:"connMaxLifetime" yaml:"connMaxLifetime"`
+	DialTimeout     *time.Duration `mapstructure:"dialTimeout" json:"dialTimeout" yaml:"dialTimeout"`
+	ReadTimeout     *time.Duration `mapstructure:"readTimeout" json:"readTimeout" yaml:"readTimeout"`
+	WriteTimeout    *time.Duration `mapstructure:"writeTimeout" json:"writeTimeout" yaml:"writeTimeout"`
 }
 
 // LineBotConfig Line Bot 設定
@@ -212,6 +250,20 @@ func setDefaults() {
 
 	// 預設 Slave 設定（空陣列，表示沒有 Slave）
 	viper.SetDefault("database.slaves", []map[string]any{})
+
+	// Redis 預設值
+	// 全域連線池設定
+	viper.SetDefault("redis.poolSize", 10)                                     // 預設連線池大小
+	viper.SetDefault("redis.minIdleConns", 2)                                  // 預設最小閒置連線數
+	viper.SetDefault("redis.maxIdleConns", 5)                                  // 預設最大閒置連線數
+	viper.SetDefault("redis.connMaxIdleTime", 5*time.Minute)                   // 預設連線最大閒置時間 5 分鐘
+	viper.SetDefault("redis.connMaxLifetime", 30*time.Minute)                  // 預設連線最大存活時間 30 分鐘
+	viper.SetDefault("redis.dialTimeout", 5*time.Second)                       // 預設連線超時 5 秒
+	viper.SetDefault("redis.readTimeout", 3*time.Second)                       // 預設讀取超時 3 秒
+	viper.SetDefault("redis.writeTimeout", 3*time.Second)                      // 預設寫入超時 3 秒
+
+	// 預設 Redis 實例設定（空陣列，表示未啟用 Redis）
+	viper.SetDefault("redis.instances", []map[string]any{})
 
 	// Line Bot 預設值
 	viper.SetDefault("line.enabled", false)

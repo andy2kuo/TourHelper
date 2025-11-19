@@ -7,8 +7,9 @@ TourHelper 後端服務，使用 Go 語言和 Gin 框架建構，提供旅遊推
 - **程式語言**：Go 1.25+
 - **Web 框架**：Gin Web Framework
 - **WebSocket**：gorilla/websocket
-- **資料庫**：支援 SQLite / MySQL / PostgreSQL
-- **ORM**：GORM
+- **資料庫**：MySQL（支援 Master-Slave 讀寫分離）
+- **快取/狀態管理**：Redis（支援多實例配置）
+- **ORM**：GORM（含 DBResolver 插件）
 - **配置管理**：Viper
 - **Bot 整合**：Line Bot SDK、Telegram Bot API
 - **測試框架**：Go testing、Testify
@@ -43,8 +44,9 @@ service/
 │   │       ├── backend-admin-server.go   # Backend Admin 伺服器實作（Gin）
 │   │       └── backend-admin-handler.go  # Backend Admin 請求處理器（管理功能）
 │   ├── database/           # 資料庫管理
-│   │   ├── database.go     # 資料庫連線管理、初始化
-│   │   └── example_usage.go # 使用範例
+│   │   ├── database.go     # 統一資料庫初始化入口（MySQL + Redis）
+│   │   ├── mysql.go        # MySQL 連線管理（支援 Master-Slave）
+│   │   └── redis.go        # Redis 連線管理（支援多實例）
 │   ├── logger/             # 日誌管理
 │   │   ├── logger.go       # Logrus + Lumberjack，支援 log rotation
 │   │   ├── umask_unix.go   # Unix/Linux 平台的檔案權限設定
@@ -288,6 +290,48 @@ Backend Server 進入點，負責：
 - **weather_service.go**：天氣服務
   - 整合第三方天氣 API
   - 處理天氣資料的業務邏輯
+
+### internal/database/
+
+資料庫管理模組，提供 MySQL 和 Redis 的統一管理：
+
+- **database.go**：統一資料庫初始化入口
+  - `Init(cfg *config.Config)`：初始化 MySQL 和 Redis 連線
+  - `Close()`：關閉所有資料庫連線
+  - `GetMySQL()`：快速取得 MySQL 管理器
+  - `GetRedis()`：快速取得 Redis 管理器
+
+- **mysql.go**：MySQL 連線管理（支援 Master-Slave 讀寫分離）
+  - `InitMySQL(cfg config.DatabaseConfig)`：初始化 MySQL 連線
+  - `GetMySQLInstance()`：取得 MySQL 管理器實例
+  - `GetDB(name ...string)`：取得資料庫連線（自動讀寫分離）
+  - `GetMaster(name ...string)`：明確取得 Master 連線（寫入）
+  - `GetSlave(name ...string)`：明確取得 Slave 連線（讀取）
+  - `GetByDatabase(database string)`：根據資料庫名稱取得連線
+
+- **redis.go**：Redis 連線管理（支援多實例配置）
+  - `InitRedis(cfg config.RedisConfig)`：初始化 Redis 連線
+  - `GetRedisInstance()`：取得 Redis 管理器實例
+  - `GetClient(name ...string)`：取得 Redis 客戶端（預設或指定實例）
+  - `GetClientByDB(database string)`：根據資料庫名稱取得對應的 Redis 客戶端
+
+**使用範例**：
+
+```go
+// 在 server.StartServer() 中會自動初始化資料庫
+// 您只需要在需要時取得連線即可
+
+// 使用 MySQL
+mysqlMgr := database.GetMySQL()
+db := mysqlMgr.GetDB()           // 取得預設資料庫（自動讀寫分離）
+masterDB := mysqlMgr.GetMaster() // 明確使用 Master 進行寫入
+slaveDB := mysqlMgr.GetSlave()   // 明確使用 Slave 進行讀取
+
+// 使用 Redis
+redisMgr := database.GetRedis()
+client := redisMgr.GetClient()       // 取得預設 Redis 實例
+cacheClient := redisMgr.GetClient("cache") // 取得名為 "cache" 的實例
+```
 
 ### internal/dao/
 
