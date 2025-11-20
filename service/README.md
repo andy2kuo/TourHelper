@@ -24,8 +24,8 @@ service/
 │   │   └── main.go         # Tour 伺服器啟動檔案，初始化設定、建立 tour server、優雅關閉
 │   ├── lobby/              # Lobby Server (會員登入驗證服務)
 │   │   └── main.go         # Lobby 伺服器啟動檔案，初始化設定、建立 lobby server、優雅關閉
-│   └── backend/      # Backend Server (後台管理服務)
-│       └── main.go         # Backend Admin 伺服器啟動檔案，初始化設定、建立 backend admin server、優雅關閉
+│   └── backend/            # Backend Server (後台管理服務)
+│       └── main.go         # Backend 伺服器啟動檔案，初始化設定、建立 backend server、優雅關閉
 ├── internal/               # 私有應用程式碼
 │   ├── config/             # 設定管理
 │   │   └── config.go       # 使用 Viper 管理設定，支援 YAML 和環境變數
@@ -40,9 +40,9 @@ service/
 │   │   ├── lobby/          # Lobby Server 實作（HTTP Only）
 │   │   │   ├── lobby-server.go      # Lobby 伺服器實作（Gin）
 │   │   │   └── lobby-handler.go     # Lobby 請求處理器（登入、會員管理）
-│   │   └── backend/  # Backend Server 實作（HTTP Only）
-│   │       ├── backend-admin-server.go   # Backend Admin 伺服器實作（Gin）
-│   │       └── backend-admin-handler.go  # Backend Admin 請求處理器（管理功能）
+│   │   └── backend/           # Backend Server 實作（HTTP Only）
+│   │       ├── backend-server.go      # Backend 伺服器實作（Gin）
+│   │       └── backend-handler.go     # Backend 請求處理器（管理功能）
 │   ├── database/           # 資料庫管理
 │   │   ├── database.go     # 統一資料庫初始化入口（MySQL + Redis）
 │   │   ├── mysql.go        # MySQL 連線管理（支援 Master-Slave）
@@ -103,7 +103,7 @@ service/
 - **Tour ↔ Lobby**: 透過 Redis 非同步通訊（不直接呼叫）
   - Tour 將狀態寫入 Redis
   - Lobby 定時從 Redis 讀取 Tour 狀態
-- **Backend Admin ↔ Redis**: 讀取各伺服器狀態，管理系統設定
+- **Backend ↔ Redis**: 讀取各伺服器狀態，管理系統設定
 
 ## 分層架構
 
@@ -114,7 +114,7 @@ service/
     ↓
 [Handlers] ← server/tour/tour-handler.go
            ← server/lobby/lobby-handler.go
-           ← server/backend/backend-admin-handler.go
+           ← server/backend/backend-handler.go
     ↓ 處理請求/回應、參數驗證
 [Services] ← services/
     ↓ 業務邏輯處理
@@ -131,7 +131,7 @@ service/
    - 位置：
      - `internal/server/tour/tour-handler.go` - Tour Server 請求處理
      - `internal/server/lobby/lobby-handler.go` - Lobby Server 請求處理（登入、會員管理）
-     - `internal/server/backend/backend-admin-handler.go` - Backend Admin 請求處理
+     - `internal/server/backend/backend-handler.go` - Backend Server 請求處理
    - 職責：處理各種請求和回應、參數解析和驗證、呼叫 Service 層
    - 範例：登入驗證、旅遊推薦、WebSocket 升級、Bot webhook
 
@@ -235,11 +235,11 @@ Backend Server 進入點，負責：
     - handleUpdateMemberInfo：更新會員資訊
 
 - **backend/**：Backend Server 實作（HTTP Only）
-  - **backend-admin-server.go**：使用 Gin 框架實作 Backend Admin HTTP 伺服器
+  - **backend-server.go**：使用 Gin 框架實作 Backend HTTP 伺服器
     - 註冊管理相關路由
     - Redis 狀態讀取（待實作）
     - 支援優雅關閉
-  - **backend-admin-handler.go**：Backend Admin 請求處理器
+  - **backend-handler.go**：Backend 請求處理器
     - handleAdminLogin：管理員登入
     - handleGetMembers：取得會員列表
     - handleGetMemberDetail：取得會員詳情
@@ -985,7 +985,7 @@ go tool cover -html=coverage.out
    backendServer := server.NewBackendServer(opts)
    backendServer.Start()
 
-   // 建立 gRPC 伺服器
+   // 建立 gRPC 伺服器（假設已實作）
    grpcServer := server.NewGRPCServer(opts)
    grpcServer.Start()
 
@@ -1005,7 +1005,7 @@ go tool cover -html=coverage.out
 
 - Tour HTTP/WebSocket Server：等待現有請求完成（最多 5 秒）
 - Lobby HTTP Server：等待現有請求完成（最多 5 秒）
-- Backend Admin HTTP Server：等待現有請求完成（最多 5 秒）
+- Backend HTTP Server：等待現有請求完成（最多 5 秒）
 - 其他伺服器：實作各自的優雅關閉邏輯
 
 ## Redis 整合
